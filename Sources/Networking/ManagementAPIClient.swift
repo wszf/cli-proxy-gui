@@ -13,20 +13,79 @@ struct ManagementAPIClient: Sendable {
         }
 
         do {
+            let startedAt = Date()
             async let configResponse = request(path: "config", baseURL: baseURL, key: managementKey)
             async let authResponse = request(path: "auth-files", baseURL: baseURL, key: managementKey)
+            async let latestResponse = try? request(
+                path: "latest-version",
+                baseURL: baseURL,
+                key: managementKey,
+                timeout: 4
+            )
+            async let pluginResponse = try? request(
+                path: "plugins",
+                baseURL: baseURL,
+                key: managementKey,
+                timeout: 5
+            )
+            async let usageResponse = try? fetchTokenUsage(
+                range: .day,
+                node: node,
+                managementKey: managementKey
+            )
             let (config, auth) = try await (configResponse, authResponse)
+            let latencyMilliseconds = max(1, Int(Date().timeIntervalSince(startedAt) * 1000))
             let configJSON = try JSONSerialization.jsonObject(with: config.data)
             let authJSON = try JSONSerialization.jsonObject(with: auth.data)
+            let credentialHealth = JSONMetrics.credentialHealth(in: authJSON)
+
+            let apiKey = JSONMetrics.firstStringInArray(
+                keys: ["api-keys", "api_keys"],
+                in: configJSON
+            )
+            let modelCount: Int?
+            if let apiKey {
+                modelCount = try? await fetchAvailableModelCount(node: node, apiKey: apiKey)
+            } else {
+                modelCount = nil
+            }
+
+            let latestResult = await latestResponse
+            let pluginResult = await pluginResponse
+            let usageResult = await usageResponse
+            let latestJSON = latestResult.flatMap {
+                try? JSONSerialization.jsonObject(with: $0.data)
+            }
+            let pluginJSON = pluginResult.flatMap {
+                try? JSONSerialization.jsonObject(with: $0.data)
+            }
 
             return NodeSnapshot(
                 state: .online,
                 version: header("x-cpa-version", fallback: "x-server-version", in: config.response),
+                latestVersion: latestJSON.flatMap {
+                    JSONMetrics.string(keys: ["latest-version", "latest_version"], in: $0)
+                },
                 buildDate: header("x-cpa-build-date", fallback: "x-server-build-date", in: config.response),
-                authFileCount: JSONMetrics.authFileCount(in: authJSON),
+                latencyMilliseconds: latencyMilliseconds,
+                authFileCount: credentialHealth.total,
+                availableAuthFileCount: credentialHealth.available,
+                disabledAuthFileCount: credentialHealth.disabled,
+                unavailableAuthFileCount: credentialHealth.unavailable,
+                credentialProviders: credentialHealth.providers,
                 providerCount: JSONMetrics.providerCount(in: configJSON),
                 apiKeyCount: JSONMetrics.arrayCount(keys: ["api-keys", "api_keys"], in: configJSON),
+                availableModelCount: modelCount,
                 routingStrategy: JSONMetrics.string(keys: ["routing-strategy", "routing_strategy"], in: configJSON),
+                plugins: pluginJSON.flatMap(JSONMetrics.pluginOverview),
+                dailyUsage: usageResult.map {
+                    DailyUsageOverview(
+                        requests: $0.summary.requests,
+                        failedRequests: $0.summary.failedRequests,
+                        totalTokens: $0.summary.totalTokens
+                    )
+                },
+                runtime: JSONMetrics.runtimeOverview(in: configJSON),
                 lastChecked: Date()
             )
         } catch {
@@ -179,6 +238,21 @@ struct ManagementAPIClient: Sendable {
 
     func clearLogs(node: ProxyNode, managementKey: String) async throws {
         _ = try await request(path: "logs", node: node, key: managementKey, method: "DELETE")
+    }
+
+    private func fetchAvailableModelCount(node: ProxyNode, apiKey: String) async throws -> Int {
+        let result = try await request(
+            path: "v1/models",
+            baseURL: try rootURL(for: node),
+            key: apiKey,
+            timeout: 6
+        )
+        guard let object = try JSONSerialization.jsonObject(with: result.data) as? [String: Any],
+              let models = object["data"] as? [[String: Any]]
+        else {
+            throw APIError.invalidResponse
+        }
+        return Set(models.compactMap { Self.text($0["id"]) }).count
     }
 
     func fetchTokenUsage(
@@ -410,6 +484,109 @@ enum JSONMetrics {
         return providerKeys.reduce(0) { $0 + (arrayCount(keys: [$1], in: object) ?? 0) }
     }
 
+    static func credentialHealth(in object: Any) -> CredentialHealth {
+        guard let dictionary = object as? [String: Any],
+              let files = dictionary["files"] as? [[String: Any]]
+        else {
+            return CredentialHealth(total: 0, available: 0, disabled: 0, unavailable: 0, providers: [])
+        }
+
+        struct Counts {
+            var total = 0
+            var available = 0
+            var disabled = 0
+            var unavailable = 0
+        }
+        var totalAvailable = 0
+        var totalDisabled = 0
+        var totalUnavailable = 0
+        var providerCounts: [String: Counts] = [:]
+
+        for file in files {
+            let provider = text(file["type"]) ?? text(file["provider"]) ?? "unknown"
+            let disabled = boolValue(file["disabled"])
+            let unavailable = boolValue(file["unavailable"])
+            let available = !disabled && !unavailable
+
+            if available { totalAvailable += 1 }
+            if disabled { totalDisabled += 1 }
+            if unavailable { totalUnavailable += 1 }
+
+            var counts = providerCounts[provider, default: Counts()]
+            counts.total += 1
+            if available { counts.available += 1 }
+            if disabled { counts.disabled += 1 }
+            if unavailable { counts.unavailable += 1 }
+            providerCounts[provider] = counts
+        }
+
+        let providers = providerCounts.map { provider, counts in
+            CredentialProviderSummary(
+                provider: provider,
+                total: counts.total,
+                available: counts.available,
+                disabled: counts.disabled,
+                unavailable: counts.unavailable
+            )
+        }
+        .sorted {
+            if $0.total == $1.total {
+                return $0.provider.localizedStandardCompare($1.provider) == .orderedAscending
+            }
+            return $0.total > $1.total
+        }
+
+        return CredentialHealth(
+            total: files.count,
+            available: totalAvailable,
+            disabled: totalDisabled,
+            unavailable: totalUnavailable,
+            providers: providers
+        )
+    }
+
+    static func runtimeOverview(in object: Any) -> RuntimeOverview {
+        RuntimeOverview(
+            debug: bool(keys: ["debug"], in: object),
+            requestLogging: bool(keys: ["request-log", "request_log"], in: object),
+            fileLogging: bool(keys: ["logging-to-file", "logging_to_file"], in: object),
+            usageStatistics: bool(
+                keys: ["usage-statistics-enabled", "usage_statistics_enabled"],
+                in: object
+            ),
+            proxyConfigured: string(keys: ["proxy-url", "proxy_url"], in: object).map { !$0.isEmpty },
+            tlsEnabled: nestedBool(keys: ["tls", "enable"], in: object),
+            requestRetry: integer(keys: ["request-retry", "request_retry"], in: object),
+            maxRetryInterval: integer(
+                keys: ["max-retry-interval", "max_retry_interval"],
+                in: object
+            )
+        )
+    }
+
+    static func pluginOverview(in object: Any) -> PluginOverview? {
+        guard let dictionary = object as? [String: Any],
+              let plugins = dictionary["plugins"] as? [[String: Any]]
+        else {
+            return nil
+        }
+        let globallyEnabled = boolValue(
+            dictionary["plugins_enabled"] ?? dictionary["plugins-enabled"]
+        )
+        let active = plugins.filter {
+            boolValue($0["effective_enabled"] ?? $0["effective-enabled"])
+        }
+        let tracker = active.contains {
+            text($0["id"]) == "cap-token-usage-tracker"
+        }
+        return PluginOverview(
+            globallyEnabled: globallyEnabled,
+            installed: plugins.count,
+            active: active.count,
+            tokenTrackerActive: tracker
+        )
+    }
+
     static func arrayCount(keys: [String], in object: Any) -> Int? {
         guard let dictionary = object as? [String: Any] else { return nil }
         for key in keys {
@@ -424,6 +601,59 @@ enum JSONMetrics {
             if let value = dictionary[key] as? String, !value.isEmpty { return value }
         }
         return nil
+    }
+
+    static func firstStringInArray(keys: [String], in object: Any) -> String? {
+        guard let dictionary = object as? [String: Any] else { return nil }
+        for key in keys {
+            guard let values = dictionary[key] as? [Any] else { continue }
+            if let value = values.compactMap(text).first(where: { !$0.isEmpty }) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    static func bool(keys: [String], in object: Any) -> Bool? {
+        guard let dictionary = object as? [String: Any] else { return nil }
+        for key in keys where dictionary[key] != nil {
+            return boolValue(dictionary[key])
+        }
+        return nil
+    }
+
+    static func integer(keys: [String], in object: Any) -> Int? {
+        guard let dictionary = object as? [String: Any] else { return nil }
+        for key in keys {
+            if let value = number(dictionary[key]) { return value }
+        }
+        return nil
+    }
+
+    private static func nestedBool(keys: [String], in object: Any) -> Bool? {
+        guard keys.count == 2,
+              let dictionary = object as? [String: Any],
+              let nested = dictionary[keys[0]] as? [String: Any],
+              nested[keys[1]] != nil
+        else {
+            return nil
+        }
+        return boolValue(nested[keys[1]])
+    }
+
+    private static func text(_ value: Any?) -> String? {
+        guard let value else { return nil }
+        let result = String(describing: value).trimmingCharacters(in: .whitespacesAndNewlines)
+        return result.isEmpty || result == "<null>" ? nil : result
+    }
+
+    private static func boolValue(_ value: Any?) -> Bool {
+        if let value = value as? Bool { return value }
+        if let value = value as? NSNumber { return value.boolValue }
+        if let value = value as? String {
+            return ["true", "1", "yes"].contains(value.lowercased())
+        }
+        return false
     }
 
     private static func number(_ value: Any?) -> Int? {

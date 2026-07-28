@@ -27,12 +27,74 @@ final class ProxyNodeTests: XCTestCase {
           "api-keys": ["a", "b"],
           "codex-api-key": [{}, {}],
           "openai-compatibility": [{}],
+          "debug": true,
+          "request-log": false,
+          "logging-to-file": true,
+          "usage-statistics-enabled": true,
+          "proxy-url": "http://proxy.internal:8080",
+          "request-retry": 3,
+          "tls": {"enable": true},
           "routing-strategy": "round-robin"
         }
         """.utf8))
         XCTAssertEqual(JSONMetrics.arrayCount(keys: ["api-keys"], in: config), 2)
         XCTAssertEqual(JSONMetrics.providerCount(in: config), 3)
         XCTAssertEqual(JSONMetrics.string(keys: ["routing-strategy"], in: config), "round-robin")
+
+        let runtime = JSONMetrics.runtimeOverview(in: config)
+        XCTAssertEqual(runtime.debug, true)
+        XCTAssertEqual(runtime.requestLogging, false)
+        XCTAssertEqual(runtime.fileLogging, true)
+        XCTAssertEqual(runtime.usageStatistics, true)
+        XCTAssertEqual(runtime.tlsEnabled, true)
+        XCTAssertEqual(runtime.proxyConfigured, true)
+        XCTAssertEqual(runtime.requestRetry, 3)
+    }
+
+    func testExtractsCredentialHealth() throws {
+        let authFiles = try JSONSerialization.jsonObject(with: Data("""
+        {
+          "files": [
+            {"type": "codex", "disabled": false, "unavailable": false},
+            {"provider": "codex", "disabled": true, "unavailable": false},
+            {"type": "claude", "disabled": false, "unavailable": true}
+          ]
+        }
+        """.utf8))
+
+        let health = JSONMetrics.credentialHealth(in: authFiles)
+        XCTAssertEqual(health.total, 3)
+        XCTAssertEqual(health.available, 1)
+        XCTAssertEqual(health.disabled, 1)
+        XCTAssertEqual(health.unavailable, 1)
+        XCTAssertEqual(health.providers.count, 2)
+        XCTAssertEqual(health.providers.first(where: { $0.provider == "codex" })?.total, 2)
+        XCTAssertEqual(health.providers.first(where: { $0.provider == "claude" })?.unavailable, 1)
+    }
+
+    func testExtractsPluginOverview() throws {
+        let plugins = try JSONSerialization.jsonObject(with: Data("""
+        {
+          "plugins_enabled": true,
+          "plugins": [
+            {"id": "cap-token-usage-tracker", "effective_enabled": true},
+            {"id": "another-plugin", "effective_enabled": false}
+          ]
+        }
+        """.utf8))
+
+        let overview = try XCTUnwrap(JSONMetrics.pluginOverview(in: plugins))
+        XCTAssertTrue(overview.globallyEnabled)
+        XCTAssertEqual(overview.installed, 2)
+        XCTAssertEqual(overview.active, 1)
+        XCTAssertTrue(overview.tokenTrackerActive)
+    }
+
+    func testVersionComparison() {
+        XCTAssertTrue(VersionComparison.isNewer("v7.2.0", than: "7.1.9"))
+        XCTAssertFalse(VersionComparison.isNewer("7.2.0", than: "v7.2.0"))
+        XCTAssertFalse(VersionComparison.isNewer("7.1.9", than: "7.2.0"))
+        XCTAssertTrue(VersionComparison.isNewer("7.2.0-beta.1", than: "7.1.9"))
     }
 
     func testDecodesTokenUsagePluginResponse() throws {

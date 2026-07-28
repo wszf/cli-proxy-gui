@@ -19,3 +19,10 @@ struct LogPage: Equatable, Sendable {
     let nextCursor: String?
 }
 
+struct CredentialHealth: Equatable, Sendable {
+    let total: Int
+    let available: Int
+    let disabled: Int
+    let unavailable: Int
+    let providers: [CredentialProviderSummary]
+}
