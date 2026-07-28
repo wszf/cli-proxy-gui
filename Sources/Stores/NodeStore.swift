@@ -11,13 +11,34 @@ final class NodeStore: ObservableObject {
     @Published var presentedEditor: NodeEditorMode?
     @Published var alertMessage: String?
 
+    private static let credentialQuotaRefreshInterval: TimeInterval = 3 * 60
     private let defaultsKey = "saved-proxy-nodes"
     private let apiClient = ManagementAPIClient()
+    private var credentialQuotaRefreshedAt: [UUID: Date] = [:]
+    private var credentialQuotaRevisions: [UUID: Int] = [:]
+    private var credentialQuotaRefreshTask: Task<Void, Never>?
 
     init() {
         load()
         selection = nodes.first?.id
-        Task { await refreshAll() }
+        credentialQuotaRefreshTask = Task { [weak self] in
+            await self?.refreshAll()
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(
+                        for: .seconds(Self.credentialQuotaRefreshInterval)
+                    )
+                } catch {
+                    return
+                }
+                guard let self else { return }
+                await self.refreshCredentialQuotasForOnlineNodes()
+            }
+        }
+    }
+
+    deinit {
+        credentialQuotaRefreshTask?.cancel()
     }
 
     func snapshot(for node: ProxyNode) -> NodeSnapshot {
@@ -53,6 +74,7 @@ final class NodeStore: ObservableObject {
             }
             nodes[index].name = name
             nodes[index].address = ProxyNode.normalize(address)
+            invalidateCredentialQuotas(for: nodes[index])
             save()
             Task { await refresh(nodes[index]) }
         } catch {
@@ -66,6 +88,8 @@ final class NodeStore: ObservableObject {
         snapshots[node.id] = nil
         credentialQuotas[node.id] = nil
         credentialQuotaStates[node.id] = nil
+        credentialQuotaRefreshedAt[node.id] = nil
+        credentialQuotaRevisions[node.id] = nil
         if selection == node.id { selection = nodes.first?.id }
         save()
     }
@@ -86,6 +110,7 @@ final class NodeStore: ObservableObject {
         } else {
             credentialQuotas[node.id] = []
             credentialQuotaStates[node.id] = .idle
+            credentialQuotaRefreshedAt[node.id] = nil
         }
     }
 
@@ -110,23 +135,7 @@ final class NodeStore: ObservableObject {
             }
         }
 
-        await withTaskGroup(of: (UUID, [CredentialQuotaSummary]?).self) { group in
-            for node in nodes where snapshots[node.id]?.state == .online {
-                guard let key = KeychainStore.read(for: node.id), !key.isEmpty else { continue }
-                credentialQuotaStates[node.id] = .loading
-                group.addTask { [apiClient] in
-                    let quotas = try? await apiClient.fetchCredentialQuotas(
-                        node: node,
-                        managementKey: key
-                    )
-                    return (node.id, quotas)
-                }
-            }
-            for await (id, quotas) in group {
-                credentialQuotas[id] = quotas ?? []
-                credentialQuotaStates[id] = .loaded
-            }
-        }
+        await refreshCredentialQuotasForOnlineNodes()
     }
 
     func openManagementPage(for node: ProxyNode) {
@@ -138,15 +147,62 @@ final class NodeStore: ObservableObject {
         KeychainStore.read(for: node.id) ?? ""
     }
 
+    func invalidateCredentialQuotas(for node: ProxyNode) {
+        credentialQuotaRefreshedAt[node.id] = nil
+        credentialQuotaRevisions[node.id, default: 0] += 1
+        credentialQuotaStates[node.id] = .idle
+    }
+
     private func refreshCredentialQuotas(_ node: ProxyNode, managementKey: String) async {
-        credentialQuotaStates[node.id] = .loading
-        credentialQuotas[node.id] = (
+        guard beginCredentialQuotaRefresh(for: node.id) else { return }
+        let revision = credentialQuotaRevisions[node.id, default: 0]
+        let quotas = (
             try? await apiClient.fetchCredentialQuotas(
                 node: node,
                 managementKey: managementKey
             )
         ) ?? []
+        guard credentialQuotaRevisions[node.id, default: 0] == revision else { return }
+        credentialQuotas[node.id] = quotas
         credentialQuotaStates[node.id] = .loaded
+    }
+
+    private func refreshCredentialQuotasForOnlineNodes() async {
+        await withTaskGroup(of: (UUID, Int, [CredentialQuotaSummary]?).self) { group in
+            for node in nodes where snapshots[node.id]?.state == .online {
+                guard let key = KeychainStore.read(for: node.id),
+                      !key.isEmpty,
+                      beginCredentialQuotaRefresh(for: node.id)
+                else {
+                    continue
+                }
+                let revision = credentialQuotaRevisions[node.id, default: 0]
+                group.addTask { [apiClient] in
+                    let quotas = try? await apiClient.fetchCredentialQuotas(
+                        node: node,
+                        managementKey: key
+                    )
+                    return (node.id, revision, quotas)
+                }
+            }
+            for await (id, revision, quotas) in group
+                where credentialQuotaRevisions[id, default: 0] == revision
+            {
+                credentialQuotas[id] = quotas ?? []
+                credentialQuotaStates[id] = .loaded
+            }
+        }
+    }
+
+    private func beginCredentialQuotaRefresh(for nodeID: UUID, now: Date = Date()) -> Bool {
+        guard credentialQuotaStates[nodeID] != .loading else { return false }
+        if let refreshedAt = credentialQuotaRefreshedAt[nodeID],
+           now.timeIntervalSince(refreshedAt) < Self.credentialQuotaRefreshInterval {
+            return false
+        }
+        credentialQuotaStates[nodeID] = .loading
+        credentialQuotaRefreshedAt[nodeID] = now
+        return true
     }
 
     private func load() {

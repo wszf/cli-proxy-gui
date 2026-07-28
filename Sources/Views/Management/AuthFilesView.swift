@@ -128,6 +128,8 @@ struct AuthFilesView: View {
             )
             await load()
             message = .success(file.disabled ? "已启用 \(file.name)" : "已禁用 \(file.name)")
+            store.invalidateCredentialQuotas(for: node)
+            await store.refresh(node)
         } catch {
             message = .error(ManagementAPIClient.friendlyMessage(for: error))
         }
@@ -155,6 +157,7 @@ struct AuthFilesView: View {
             )
             await load()
             message = .success("已上传 \(url.lastPathComponent)")
+            store.invalidateCredentialQuotas(for: node)
             await store.refresh(node)
         } catch {
             message = .error(ManagementAPIClient.friendlyMessage(for: error))
@@ -171,6 +174,7 @@ struct AuthFilesView: View {
             try await client.deleteAuthFile(name: file.name, node: node, managementKey: key)
             await load()
             message = .success("已删除 \(file.name)")
+            store.invalidateCredentialQuotas(for: node)
             await store.refresh(node)
         } catch {
             message = .error(ManagementAPIClient.friendlyMessage(for: error))
