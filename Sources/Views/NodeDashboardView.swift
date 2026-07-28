@@ -37,6 +37,7 @@ struct NodeDashboardView: View {
                 TokenUsageView(node: node)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle(node.name)
         .toolbar {
             Button {

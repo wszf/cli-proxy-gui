@@ -7,6 +7,7 @@ struct LogsView: View {
     @State private var lines: [String] = []
     @State private var searchText = ""
     @State private var isLoading = false
+    @State private var isFileLoggingDisabled = false
     @State private var showClearConfirmation = false
     @State private var message: PageMessage?
 
@@ -27,9 +28,13 @@ struct LogsView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if lines.isEmpty {
                 ContentUnavailableView(
-                    "没有日志",
-                    systemImage: "text.alignleft",
-                    description: Text("节点可能尚未产生日志，或未开启 logging-to-file。")
+                    isFileLoggingDisabled ? "文件日志未开启" : "没有日志",
+                    systemImage: isFileLoggingDisabled ? "doc.badge.gearshape" : "text.alignleft",
+                    description: Text(
+                        isFileLoggingDisabled
+                            ? "请在“配置”中开启 logging-to-file 后再查看运行日志。"
+                            : "节点尚未产生日志。"
+                    )
                 )
             } else {
                 ScrollView([.horizontal, .vertical]) {
@@ -94,12 +99,21 @@ struct LogsView: View {
             return
         }
         isLoading = true
+        isFileLoggingDisabled = false
         message = nil
         defer { isLoading = false }
         do {
             lines = try await client.fetchLogs(node: node, managementKey: key).lines
         } catch {
-            message = .error(ManagementAPIClient.friendlyMessage(for: error))
+            if case let APIError.httpStatus(code, detail) = error,
+               code == 400,
+               detail?.localizedCaseInsensitiveContains("logging to file disabled") == true {
+                lines = []
+                isFileLoggingDisabled = true
+                message = nil
+            } else {
+                message = .error(ManagementAPIClient.friendlyMessage(for: error))
+            }
         }
     }
 
@@ -116,4 +130,3 @@ struct LogsView: View {
         }
     }
 }
-
