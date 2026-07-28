@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct CLIProxyGUIApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var store = NodeStore()
 
     var body: some Scene {
@@ -21,4 +22,3 @@ struct CLIProxyGUIApp: App {
         }
     }
 }
-

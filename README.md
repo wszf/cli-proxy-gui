@@ -14,6 +14,7 @@
 - 查看、搜索和清空节点运行日志
 - 原生读取 CAP Token Usage Tracker 的请求、Token 趋势、模型用量、完整维度明细、可翻页的逐请求明细和预估费用
 - Management Key 存储在 macOS Keychain
+- 单实例运行；重复打开时自动激活已有窗口
 - 一键打开节点自带的完整 Management Center
 - 支持用户配置的 HTTP 节点（公网部署仍强烈建议使用 HTTPS）
 

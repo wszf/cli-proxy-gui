@@ -2,6 +2,27 @@ import XCTest
 @testable import CLIProxyGUI
 
 final class ProxyNodeTests: XCTestCase {
+    func testSingleInstanceLockExcludesSecondOwnerAndReleases() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        var first: SingleInstanceLock? = SingleInstanceLock(
+            identifier: "single-instance-test",
+            directory: directory
+        )
+        let second = SingleInstanceLock(
+            identifier: "single-instance-test",
+            directory: directory
+        )
+
+        XCTAssertTrue(first?.acquire() == true)
+        XCTAssertFalse(second.acquire())
+
+        first = nil
+        XCTAssertTrue(second.acquire())
+    }
+
     func testNormalizesCommonManagementAddresses() {
         XCTAssertEqual(
             ProxyNode.normalize("example.com:8317/v0/management/"),

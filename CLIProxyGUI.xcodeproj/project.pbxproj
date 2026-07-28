@@ -13,6 +13,7 @@
 		4111CA8378E14C9070355809 /* CLIProxyGUIApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 295BC5A05C776D017FE60C97 /* CLIProxyGUIApp.swift */; };
 		5A51AEF269EAE957B0ED1AB7 /* NodeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B0FC8EE33908ACE38EB3A27 /* NodeStore.swift */; };
 		60153A38B52F96342E6C5302 /* NodeEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09934AE6223A1141543D12DB /* NodeEditorView.swift */; };
+		61D259B0CA690EA4AB41D446 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DD33C2FFC32985940F7762B /* AppDelegate.swift */; };
 		781419F94FD394199BFB5E77 /* LogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 387400CC073D8064FC44AD92 /* LogsView.swift */; };
 		846CE6BF9A2A2D416CECF118 /* TokenUsageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75E6BBAEAE1D1CF738C649F9 /* TokenUsageView.swift */; };
 		84F89B70B4B83D65858E9E85 /* APIKeysView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 759560C14E9D6C7704912B65 /* APIKeysView.swift */; };
@@ -40,6 +41,7 @@
 /* Begin PBXFileReference section */
 		09934AE6223A1141543D12DB /* NodeEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeEditorView.swift; sourceTree = "<group>"; };
 		0A26F14BF4A5E04B71587ECE /* NodeDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeDashboardView.swift; sourceTree = "<group>"; };
+		0DD33C2FFC32985940F7762B /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		16219B9227D6240951E64A9F /* CLIProxyGUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CLIProxyGUI.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		295BC5A05C776D017FE60C97 /* CLIProxyGUIApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIProxyGUIApp.swift; sourceTree = "<group>"; };
 		306E0AA1CD1D850B35D4FF61 /* ProxyNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyNode.swift; sourceTree = "<group>"; };
@@ -64,6 +66,7 @@
 		091426C93AC770E86FB02C8E /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				0DD33C2FFC32985940F7762B /* AppDelegate.swift */,
 				4AB4ADAC519CB34D4735D6B7 /* Assets.xcassets */,
 				295BC5A05C776D017FE60C97 /* CLIProxyGUIApp.swift */,
 				812E0E215D7780981794602E /* Models */,
@@ -260,6 +263,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				84F89B70B4B83D65858E9E85 /* APIKeysView.swift in Sources */,
+				61D259B0CA690EA4AB41D446 /* AppDelegate.swift in Sources */,
 				89AF869ED9EEAC99F1044F1C /* AuthFilesView.swift in Sources */,
 				4111CA8378E14C9070355809 /* CLIProxyGUIApp.swift in Sources */,
 				8A43985BFA04B6E30D1C3BC9 /* ConfigEditorView.swift in Sources */,
@@ -324,7 +328,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -337,7 +341,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.5.0;
+				MARKETING_VERSION = 0.5.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -418,7 +422,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -437,7 +441,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.5.0;
+				MARKETING_VERSION = 0.5.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
