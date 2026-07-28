@@ -12,7 +12,7 @@
 - 管理客户端 API Keys，支持生成、修改和批量替换
 - 查看、上传、启用、禁用和删除 JSON 认证文件
 - 查看、搜索和清空节点运行日志
-- 原生读取 CAP Token Usage Tracker 的请求、Token 趋势、模型用量、逐请求明细和预估费用
+- 原生读取 CAP Token Usage Tracker 的请求、Token 趋势、模型用量、完整维度明细、逐请求明细和预估费用
 - Management Key 存储在 macOS Keychain
 - 一键打开节点自带的完整 Management Center
 - 支持用户配置的 HTTP 节点（公网部署仍强烈建议使用 HTTPS）

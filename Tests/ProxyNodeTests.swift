@@ -97,6 +97,16 @@ final class ProxyNodeTests: XCTestCase {
         XCTAssertEqual(rows[0].totalTokens, 150)
     }
 
+    func testFiltersUsageDimensions() {
+        let group = usageGroup(model: "gpt-5", provider: "openai", requests: 2, tokens: 100)
+
+        XCTAssertTrue(group.matchesDimensionQuery(""))
+        XCTAssertTrue(group.matchesDimensionQuery("GPT-5"))
+        XCTAssertTrue(group.matchesDimensionQuery("openai"))
+        XCTAssertTrue(group.matchesDimensionQuery("成功"))
+        XCTAssertFalse(group.matchesDimensionQuery("anthropic"))
+    }
+
     private func usageGroup(
         model: String,
         provider: String,

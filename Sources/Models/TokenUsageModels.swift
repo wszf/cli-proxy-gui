@@ -96,6 +96,24 @@ struct UsageGroup: Codable, Equatable, Sendable {
         case averageLatencyNS = "averageLatencyNs"
         case averageTTFTNS = "averageTtftNs"
     }
+
+    func matchesDimensionQuery(_ query: String) -> Bool {
+        let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return true }
+        return [
+            provider,
+            executorType,
+            model,
+            alias,
+            source,
+            authType,
+            serviceTier,
+            reasoningEffort,
+            failed ? "failed 失败" : "success 成功",
+            String(failureStatus)
+        ]
+        .contains { $0.localizedCaseInsensitiveContains(normalized) }
+    }
 }
 
 struct UsageSeriesPoint: Codable, Equatable, Identifiable, Sendable {

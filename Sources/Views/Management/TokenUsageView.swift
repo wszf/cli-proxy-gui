@@ -11,11 +11,23 @@ struct TokenUsageView: View {
     @State private var requests: UsageRequestPage?
     @State private var isLoading = false
     @State private var message: PageMessage?
+    @State private var dimensionQuery = ""
 
     private let client = ManagementAPIClient()
 
     private var modelRows: [ModelUsageRow] {
         ModelUsageRow.aggregate(stats?.groups ?? [])
+    }
+
+    private var dimensionGroups: [UsageGroup] {
+        (stats?.groups ?? [])
+            .filter { $0.matchesDimensionQuery(dimensionQuery) }
+            .sorted {
+                if $0.totalTokens == $1.totalTokens {
+                    return $0.requests > $1.requests
+                }
+                return $0.totalTokens > $1.totalTokens
+            }
     }
 
     var body: some View {
@@ -32,6 +44,7 @@ struct TokenUsageView: View {
                         metrics(stats)
                         trendChart(stats)
                         modelUsage
+                        dimensionDetails(stats)
                         recentRequests
                     }
                     .padding(18)
@@ -178,6 +191,116 @@ struct TokenUsageView: View {
                 .padding(8)
             }
         }
+    }
+
+    private func dimensionDetails(_ stats: TokenUsageSnapshot) -> some View {
+        GroupBox {
+            if stats.groups.isEmpty {
+                Text("没有原始维度数据")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 80)
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        TextField("筛选模型、提供商、来源、认证类型…", text: $dimensionQuery)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: 360)
+                        Text("显示 \(min(dimensionGroups.count, 100)) / \(stats.groups.count) 组")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+
+                    if dimensionGroups.isEmpty {
+                        ContentUnavailableView.search(text: dimensionQuery)
+                            .frame(maxWidth: .infinity, minHeight: 120)
+                    } else {
+                        ScrollView(.horizontal) {
+                            Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 8) {
+                                dimensionHeader
+                                Divider()
+                                ForEach(
+                                    Array(dimensionGroups.prefix(100).enumerated()),
+                                    id: \.offset
+                                ) { _, group in
+                                    dimensionRow(group)
+                                }
+                            }
+                            .padding(8)
+                        }
+                    }
+                }
+            }
+        } label: {
+            Label("维度明细", systemImage: "tablecells")
+        }
+    }
+
+    private var dimensionHeader: some View {
+        GridRow {
+            dimensionHeading("提供商")
+            dimensionHeading("执行器")
+            dimensionHeading("模型")
+            dimensionHeading("别名")
+            dimensionHeading("来源")
+            dimensionHeading("认证")
+            dimensionHeading("服务层级")
+            dimensionHeading("推理强度")
+            dimensionHeading("结果")
+            dimensionHeading("状态码")
+            dimensionHeading("请求")
+            dimensionHeading("输入")
+            dimensionHeading("输出")
+            dimensionHeading("推理")
+            dimensionHeading("缓存读取")
+            dimensionHeading("缓存创建")
+            dimensionHeading("总 Tokens")
+            dimensionHeading("平均延迟")
+            dimensionHeading("平均 TTFT")
+        }
+    }
+
+    private func dimensionRow(_ group: UsageGroup) -> some View {
+        GridRow {
+            dimensionText(group.provider)
+            dimensionText(group.executorType)
+            dimensionText(group.model)
+            dimensionText(group.alias)
+            dimensionText(group.source)
+            dimensionText(group.authType)
+            dimensionText(group.serviceTier)
+            dimensionText(group.reasoningEffort)
+            Text(group.failed ? "失败" : "成功")
+                .foregroundStyle(group.failed ? .red : .green)
+            dimensionNumber(group.failureStatus == 0 ? "—" : String(group.failureStatus))
+            dimensionNumber(group.requests.formatted())
+            dimensionNumber(group.inputTokens.formatted())
+            dimensionNumber(group.outputTokens.formatted())
+            dimensionNumber(group.reasoningTokens.formatted())
+            dimensionNumber(group.cacheReadTokens.formatted())
+            dimensionNumber(group.cacheCreationTokens.formatted())
+            dimensionNumber(group.totalTokens.formatted())
+            dimensionNumber(duration(group.averageLatencyNS))
+            dimensionNumber(duration(group.averageTTFTNS))
+        }
+    }
+
+    private func dimensionHeading(_ title: String) -> some View {
+        Text(title)
+            .fontWeight(.semibold)
+            .lineLimit(1)
+    }
+
+    private func dimensionText(_ value: String) -> some View {
+        Text(value.isEmpty ? "—" : value)
+            .lineLimit(1)
+            .foregroundStyle(value.isEmpty ? .tertiary : .primary)
+    }
+
+    private func dimensionNumber(_ value: String) -> some View {
+        Text(value)
+            .fontDesign(.monospaced)
+            .lineLimit(1)
     }
 
     private var recentRequests: some View {
