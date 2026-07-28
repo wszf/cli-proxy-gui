@@ -255,6 +255,121 @@ struct ManagementAPIClient: Sendable {
         return Set(models.compactMap { Self.text($0["id"]) }).count
     }
 
+    func fetchCredentialQuotas(
+        node: ProxyNode,
+        managementKey: String
+    ) async throws -> [CredentialQuotaSummary] {
+        let response = try await request(path: "auth-files", node: node, key: managementKey)
+        let object = try JSONSerialization.jsonObject(with: response.data)
+        let targets = CredentialQuotaParser.targets(in: object)
+
+        return await withTaskGroup(of: CredentialQuotaSummary.self) { group in
+            for target in targets {
+                group.addTask {
+                    do {
+                        return try await fetchCredentialQuota(
+                            target,
+                            node: node,
+                            managementKey: managementKey
+                        )
+                    } catch {
+                        return CredentialQuotaSummary(
+                            id: target.id,
+                            provider: target.provider,
+                            account: target.account,
+                            plan: target.plan,
+                            windows: [],
+                            error: Self.credentialQuotaMessage(for: error)
+                        )
+                    }
+                }
+            }
+
+            var summaries: [CredentialQuotaSummary] = []
+            for await summary in group {
+                summaries.append(summary)
+            }
+            return summaries.sorted {
+                if $0.provider == $1.provider {
+                    return $0.account.localizedStandardCompare($1.account) == .orderedAscending
+                }
+                return $0.provider.localizedStandardCompare($1.provider) == .orderedAscending
+            }
+        }
+    }
+
+    private func fetchCredentialQuota(
+        _ target: CredentialQuotaTarget,
+        node: ProxyNode,
+        managementKey: String
+    ) async throws -> CredentialQuotaSummary {
+        let request: CredentialQuotaRequest
+        switch target.provider {
+        case "codex":
+            var headers = [
+                "Authorization": "Bearer $TOKEN$",
+                "Content-Type": "application/json",
+                "User-Agent": "codex_cli_rs/0.76.0 (macOS; arm64)"
+            ]
+            if let accountID = target.accountID {
+                headers["Chatgpt-Account-Id"] = accountID
+            }
+            request = CredentialQuotaRequest(
+                url: "https://chatgpt.com/backend-api/wham/usage",
+                headers: headers
+            )
+        case "claude":
+            request = CredentialQuotaRequest(
+                url: "https://api.anthropic.com/api/oauth/usage",
+                headers: [
+                    "Authorization": "Bearer $TOKEN$",
+                    "Content-Type": "application/json",
+                    "anthropic-beta": "oauth-2025-04-20"
+                ]
+            )
+        case "kimi":
+            request = CredentialQuotaRequest(
+                url: "https://api.kimi.com/coding/v1/usages",
+                headers: ["Authorization": "Bearer $TOKEN$"]
+            )
+        default:
+            throw APIError.invalidResponse
+        }
+
+        let payload = try JSONSerialization.data(withJSONObject: [
+            "auth_index": target.authIndex,
+            "method": "GET",
+            "url": request.url,
+            "header": request.headers
+        ])
+        let result = try await self.request(
+            path: "api-call",
+            node: node,
+            key: managementKey,
+            method: "POST",
+            body: payload,
+            contentType: "application/json",
+            timeout: 15
+        )
+        let upstream = try CredentialQuotaParser.upstreamResponse(from: result.data)
+        guard (200..<300).contains(upstream.statusCode) else {
+            throw APIError.httpStatus(upstream.statusCode, upstream.message)
+        }
+
+        let parsed = CredentialQuotaParser.summary(target: target, payload: upstream.body)
+        guard !parsed.windows.isEmpty else {
+            throw APIError.httpStatus(upstream.statusCode, "上游没有返回可识别的额度窗口")
+        }
+        return parsed
+    }
+
+    private static func credentialQuotaMessage(for error: Error) -> String {
+        if case let APIError.httpStatus(code, message) = error {
+            return message.map { "上游 HTTP \(code)：\($0)" } ?? "上游 HTTP \(code)"
+        }
+        return friendlyMessage(for: error)
+    }
+
     func fetchTokenUsage(
         range: UsageRange,
         node: ProxyNode,

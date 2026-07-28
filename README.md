@@ -7,7 +7,7 @@
 
 - 保存和切换多个 CLIProxyAPI 节点
 - 并发检查所有节点状态
-- 概览节点延迟、版本更新、凭证健康、可用模型、24 小时用量、插件状态和运行配置
+- 概览节点延迟、版本更新、凭证健康、账号额度、可用模型、24 小时用量、插件状态和运行配置
 - 原生读取和编辑完整 `config.yaml`，保存后触发服务热重载
 - 管理客户端 API Keys，支持生成、修改和批量替换
 - 查看、上传、启用、禁用和删除 JSON 认证文件
@@ -24,6 +24,7 @@
 - Xcode 26（项目使用 Swift 6）
 - 远程节点已设置 `remote-management.allow-remote: true`
 - 如需查看 Token 用量，节点需安装并启用 `cap-token-usage-tracker`
+- 账号额度读取目前支持 Codex、Claude 和 Kimi OAuth 凭证
 
 ## 开发运行
 

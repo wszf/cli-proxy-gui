@@ -5,6 +5,8 @@ import Foundation
 final class NodeStore: ObservableObject {
     @Published private(set) var nodes: [ProxyNode] = []
     @Published private(set) var snapshots: [UUID: NodeSnapshot] = [:]
+    @Published private(set) var credentialQuotas: [UUID: [CredentialQuotaSummary]] = [:]
+    @Published private(set) var credentialQuotaStates: [UUID: CredentialQuotaLoadState] = [:]
     @Published var selection: UUID?
     @Published var presentedEditor: NodeEditorMode?
     @Published var alertMessage: String?
@@ -20,6 +22,14 @@ final class NodeStore: ObservableObject {
 
     func snapshot(for node: ProxyNode) -> NodeSnapshot {
         snapshots[node.id] ?? .empty
+    }
+
+    func quotas(for node: ProxyNode) -> [CredentialQuotaSummary] {
+        credentialQuotas[node.id] ?? []
+    }
+
+    func quotaState(for node: ProxyNode) -> CredentialQuotaLoadState {
+        credentialQuotaStates[node.id] ?? .idle
     }
 
     func add(name: String, address: String, key: String) {
@@ -54,6 +64,8 @@ final class NodeStore: ObservableObject {
         KeychainStore.delete(for: node.id)
         nodes.removeAll { $0.id == node.id }
         snapshots[node.id] = nil
+        credentialQuotas[node.id] = nil
+        credentialQuotaStates[node.id] = nil
         if selection == node.id { selection = nodes.first?.id }
         save()
     }
@@ -67,7 +79,14 @@ final class NodeStore: ObservableObject {
             )
             return
         }
-        snapshots[node.id] = await apiClient.fetchSnapshot(node: node, managementKey: key)
+        let snapshot = await apiClient.fetchSnapshot(node: node, managementKey: key)
+        snapshots[node.id] = snapshot
+        if snapshot.state == .online {
+            await refreshCredentialQuotas(node, managementKey: key)
+        } else {
+            credentialQuotas[node.id] = []
+            credentialQuotaStates[node.id] = .idle
+        }
     }
 
     func refreshAll() async {
@@ -90,6 +109,24 @@ final class NodeStore: ObservableObject {
                 snapshots[id] = snapshot
             }
         }
+
+        await withTaskGroup(of: (UUID, [CredentialQuotaSummary]?).self) { group in
+            for node in nodes where snapshots[node.id]?.state == .online {
+                guard let key = KeychainStore.read(for: node.id), !key.isEmpty else { continue }
+                credentialQuotaStates[node.id] = .loading
+                group.addTask { [apiClient] in
+                    let quotas = try? await apiClient.fetchCredentialQuotas(
+                        node: node,
+                        managementKey: key
+                    )
+                    return (node.id, quotas)
+                }
+            }
+            for await (id, quotas) in group {
+                credentialQuotas[id] = quotas ?? []
+                credentialQuotaStates[id] = .loaded
+            }
+        }
     }
 
     func openManagementPage(for node: ProxyNode) {
@@ -99,6 +136,17 @@ final class NodeStore: ObservableObject {
 
     func key(for node: ProxyNode) -> String {
         KeychainStore.read(for: node.id) ?? ""
+    }
+
+    private func refreshCredentialQuotas(_ node: ProxyNode, managementKey: String) async {
+        credentialQuotaStates[node.id] = .loading
+        credentialQuotas[node.id] = (
+            try? await apiClient.fetchCredentialQuotas(
+                node: node,
+                managementKey: managementKey
+            )
+        ) ?? []
+        credentialQuotaStates[node.id] = .loaded
     }
 
     private func load() {
@@ -127,4 +175,3 @@ enum NodeEditorMode: Identifiable {
         }
     }
 }
-

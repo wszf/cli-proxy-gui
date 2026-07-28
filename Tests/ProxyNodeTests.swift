@@ -93,6 +93,115 @@ final class ProxyNodeTests: XCTestCase {
         XCTAssertEqual(health.providers.first(where: { $0.provider == "claude" })?.unavailable, 1)
     }
 
+    func testExtractsCredentialQuotaTargets() throws {
+        let authFiles = try JSONSerialization.jsonObject(with: Data("""
+        {
+          "files": [
+            {
+              "name": "codex.json",
+              "type": "codex",
+              "auth_index": "codex-1",
+              "email": "me@example.com",
+              "id_token": {
+                "https://api.openai.com/auth": {
+                  "chatgpt_account_id": "account-1",
+                  "chatgpt_plan_type": "plus"
+                }
+              }
+            },
+            {
+              "name": "disabled.json",
+              "type": "claude",
+              "auth_index": "claude-1",
+              "disabled": true
+            },
+            {
+              "name": "unsupported.json",
+              "type": "gemini",
+              "auth_index": "gemini-1"
+            }
+          ]
+        }
+        """.utf8))
+
+        let targets = CredentialQuotaParser.targets(in: authFiles)
+        XCTAssertEqual(targets.count, 1)
+        XCTAssertEqual(targets[0].account, "me@example.com")
+        XCTAssertEqual(targets[0].accountID, "account-1")
+        XCTAssertEqual(targets[0].plan, "plus")
+    }
+
+    func testParsesCodexQuotaWindows() throws {
+        let payload = try JSONSerialization.jsonObject(with: Data("""
+        {
+          "plan_type": "plus",
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 25,
+              "limit_window_seconds": 18000,
+              "reset_after_seconds": 3600
+            },
+            "secondary_window": {
+              "used_percent": 70,
+              "limit_window_seconds": 604800,
+              "reset_at": 1800000000
+            }
+          }
+        }
+        """.utf8))
+        let target = CredentialQuotaTarget(
+            id: "codex-1",
+            authIndex: "codex-1",
+            provider: "codex",
+            account: "me@example.com",
+            accountID: nil,
+            plan: nil
+        )
+
+        let summary = CredentialQuotaParser.summary(target: target, payload: payload)
+        XCTAssertEqual(summary.plan, "plus")
+        XCTAssertEqual(summary.windows.map(\.label), ["5 小时", "每周"])
+        XCTAssertEqual(summary.windows.map(\.remainingPercent), [75, 30])
+        XCTAssertNotNil(summary.windows[0].resetsAt)
+    }
+
+    func testParsesClaudeAndKimiQuotaWindows() throws {
+        let claude = try JSONSerialization.jsonObject(with: Data("""
+        {
+          "five_hour": {"utilization": 20, "resets_at": "2026-08-01T10:00:00Z"},
+          "seven_day": {"utilization": 45, "resets_at": "2026-08-05T10:00:00Z"}
+        }
+        """.utf8))
+        let kimi = try JSONSerialization.jsonObject(with: Data("""
+        {
+          "limits": [{
+            "detail": {"name": "Weekly", "limit": 1000, "remaining": 250}
+          }]
+        }
+        """.utf8))
+        let claudeTarget = CredentialQuotaTarget(
+            id: "claude-1",
+            authIndex: "claude-1",
+            provider: "claude",
+            account: "Claude",
+            accountID: nil,
+            plan: nil
+        )
+        let kimiTarget = CredentialQuotaTarget(
+            id: "kimi-1",
+            authIndex: "kimi-1",
+            provider: "kimi",
+            account: "Kimi",
+            accountID: nil,
+            plan: nil
+        )
+
+        let claudeSummary = CredentialQuotaParser.summary(target: claudeTarget, payload: claude)
+        let kimiSummary = CredentialQuotaParser.summary(target: kimiTarget, payload: kimi)
+        XCTAssertEqual(claudeSummary.windows.map(\.remainingPercent), [80, 55])
+        XCTAssertEqual(kimiSummary.windows.first?.remainingPercent, 25)
+    }
+
     func testExtractsPluginOverview() throws {
         let plugins = try JSONSerialization.jsonObject(with: Data("""
         {

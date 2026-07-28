@@ -26,3 +26,29 @@ struct CredentialHealth: Equatable, Sendable {
     let unavailable: Int
     let providers: [CredentialProviderSummary]
 }
+
+struct CredentialQuotaSummary: Identifiable, Equatable, Sendable {
+    let id: String
+    let provider: String
+    let account: String
+    let plan: String?
+    let windows: [CredentialQuotaWindow]
+    let error: String?
+
+    var lowestRemainingPercent: Double? {
+        windows.map(\.remainingPercent).min()
+    }
+}
+
+struct CredentialQuotaWindow: Identifiable, Equatable, Sendable {
+    let id: String
+    let label: String
+    let remainingPercent: Double
+    let resetsAt: Date?
+}
+
+enum CredentialQuotaLoadState: Equatable, Sendable {
+    case idle
+    case loading
+    case loaded
+}

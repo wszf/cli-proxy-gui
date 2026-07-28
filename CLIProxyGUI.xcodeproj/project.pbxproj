@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		05F8C001F2B0ADDA2230BD94 /* NodeDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A26F14BF4A5E04B71587ECE /* NodeDashboardView.swift */; };
 		1C5E9A4975FB141B7BAD98E8 /* ManagementAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA25A684932CC2F9A360E510 /* ManagementAPIClient.swift */; };
+		2F490796A26D507438787B1A /* CredentialQuotaParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECBF54FFD0E0BA87C62115FF /* CredentialQuotaParser.swift */; };
 		3272FCCB32B4B5746EB0BBD9 /* PageMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E49CCC5C4148225908A3BE /* PageMessage.swift */; };
 		4111CA8378E14C9070355809 /* CLIProxyGUIApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 295BC5A05C776D017FE60C97 /* CLIProxyGUIApp.swift */; };
 		5A51AEF269EAE957B0ED1AB7 /* NodeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B0FC8EE33908ACE38EB3A27 /* NodeStore.swift */; };
@@ -60,6 +61,7 @@
 		C419627B2CAA75F270DB7E1F /* AuthFilesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFilesView.swift; sourceTree = "<group>"; };
 		C775CB97AEE62928D81164B4 /* CLIProxyGUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CLIProxyGUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E5E8CCA945E979F6663323FC /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		ECBF54FFD0E0BA87C62115FF /* CredentialQuotaParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialQuotaParser.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -100,6 +102,7 @@
 		594D933B40B8DC8500C96F34 /* Networking */ = {
 			isa = PBXGroup;
 			children = (
+				ECBF54FFD0E0BA87C62115FF /* CredentialQuotaParser.swift */,
 				BA25A684932CC2F9A360E510 /* ManagementAPIClient.swift */,
 			);
 			path = Networking;
@@ -268,6 +271,7 @@
 				4111CA8378E14C9070355809 /* CLIProxyGUIApp.swift in Sources */,
 				8A43985BFA04B6E30D1C3BC9 /* ConfigEditorView.swift in Sources */,
 				D8834DABE4784F13F74221AA /* ContentView.swift in Sources */,
+				2F490796A26D507438787B1A /* CredentialQuotaParser.swift in Sources */,
 				B782030D4D6C01DB2C8C465B /* KeychainStore.swift in Sources */,
 				781419F94FD394199BFB5E77 /* LogsView.swift in Sources */,
 				1C5E9A4975FB141B7BAD98E8 /* ManagementAPIClient.swift in Sources */,
@@ -328,7 +332,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -341,7 +345,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.5.1;
+				MARKETING_VERSION = 0.6.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -422,7 +426,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -441,7 +445,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.5.1;
+				MARKETING_VERSION = 0.6.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

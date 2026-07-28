@@ -6,6 +6,8 @@ struct NodeDashboardView: View {
     @State private var section: NodeManagementSection = .overview
 
     private var snapshot: NodeSnapshot { store.snapshot(for: node) }
+    private var credentialQuotas: [CredentialQuotaSummary] { store.quotas(for: node) }
+    private var credentialQuotaState: CredentialQuotaLoadState { store.quotaState(for: node) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -218,9 +220,44 @@ struct NodeDashboardView: View {
                     }
                 }
                 .padding(6)
+
+                Divider()
+                    .padding(.vertical, 6)
+
+                credentialQuotaContent
             } label: {
                 Label("凭证健康", systemImage: "person.badge.key")
             }
+        }
+    }
+
+    @ViewBuilder
+    private var credentialQuotaContent: some View {
+        if credentialQuotaState == .loading {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("正在读取账号额度…")
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+        } else if credentialQuotas.isEmpty {
+            Text("当前没有可读取额度的 Codex、Claude 或 Kimi 凭证")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+        } else {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 260), spacing: 12)],
+                spacing: 12
+            ) {
+                ForEach(credentialQuotas) { quota in
+                    CredentialQuotaCard(quota: quota)
+                }
+            }
+            .padding(6)
         }
     }
 
@@ -452,6 +489,75 @@ private struct RuntimeValueBadge: View {
         }
         .padding(9)
         .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+private struct CredentialQuotaCard: View {
+    let quota: CredentialQuotaSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack(spacing: 8) {
+                Image(systemName: "person.crop.circle")
+                    .foregroundStyle(.tint)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(quota.account)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                    Text(accountSubtitle)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if let remaining = quota.lowestRemainingPercent {
+                    Text("\(Int(remaining.rounded()))% 最低")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(color(for: remaining))
+                }
+            }
+
+            if let error = quota.error {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .lineLimit(2)
+            } else {
+                ForEach(quota.windows) { window in
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack {
+                            Text(window.label)
+                                .font(.caption)
+                            Spacer()
+                            Text("\(Int(window.remainingPercent.rounded()))% 剩余")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(color(for: window.remainingPercent))
+                        }
+                        ProgressView(value: window.remainingPercent, total: 100)
+                            .tint(color(for: window.remainingPercent))
+                        if let resetsAt = window.resetsAt {
+                            Text("重置：\(resetsAt.formatted(date: .abbreviated, time: .shortened))")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var accountSubtitle: String {
+        if let plan = quota.plan, !plan.isEmpty {
+            return "\(quota.provider) · \(plan)"
+        }
+        return quota.provider
+    }
+
+    private func color(for remaining: Double) -> Color {
+        if remaining <= 15 { return .red }
+        if remaining <= 35 { return .orange }
+        return .green
     }
 }
 

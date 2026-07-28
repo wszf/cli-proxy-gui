@@ -6,6 +6,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var instanceLock: SingleInstanceLock?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+            return
+        }
         let lock = SingleInstanceLock(identifier: Bundle.main.bundleIdentifier ?? "com.wszf.cli-proxy-gui")
         guard lock.acquire() else {
             activateExistingInstance()
