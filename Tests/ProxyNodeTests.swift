@@ -107,6 +107,17 @@ final class ProxyNodeTests: XCTestCase {
         XCTAssertFalse(group.matchesDimensionQuery("anthropic"))
     }
 
+    func testUsageRequestPaginationState() {
+        let firstPage = UsageRequestPage(total: 120, offset: 0, limit: 50, items: [])
+        let emptyLastPage = UsageRequestPage(total: 100, offset: 100, limit: 50, items: [])
+
+        XCTAssertFalse(firstPage.hasPreviousPage)
+        XCTAssertTrue(firstPage.hasNextPage)
+        XCTAssertNil(firstPage.displayedRange)
+        XCTAssertTrue(emptyLastPage.hasPreviousPage)
+        XCTAssertFalse(emptyLastPage.hasNextPage)
+    }
+
     private func usageGroup(
         model: String,
         provider: String,

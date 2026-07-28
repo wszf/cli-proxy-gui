@@ -208,6 +208,7 @@ struct ManagementAPIClient: Sendable {
     func fetchTokenUsageRequests(
         range: UsageRange,
         node: ProxyNode,
+        offset: Int = 0,
         limit: Int = 50
     ) async throws -> UsageRequestPage {
         let result = try await request(
@@ -216,7 +217,7 @@ struct ManagementAPIClient: Sendable {
             key: "",
             queryItems: [
                 URLQueryItem(name: "range", value: range.rawValue),
-                URLQueryItem(name: "offset", value: "0"),
+                URLQueryItem(name: "offset", value: String(max(0, offset))),
                 URLQueryItem(name: "limit", value: String(limit))
             ]
         )

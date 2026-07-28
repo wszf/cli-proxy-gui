@@ -10,10 +10,13 @@ struct TokenUsageView: View {
     @State private var costs: TokenUsageCosts?
     @State private var requests: UsageRequestPage?
     @State private var isLoading = false
+    @State private var isLoadingRequests = false
     @State private var message: PageMessage?
     @State private var dimensionQuery = ""
+    @State private var requestOffset = 0
 
     private let client = ManagementAPIClient()
+    private let requestPageSize = 50
 
     private var modelRows: [ModelUsageRow] {
         ModelUsageRow.aggregate(stats?.groups ?? [])
@@ -65,6 +68,7 @@ struct TokenUsageView: View {
         }
         .task(id: node.id) { await load() }
         .onChange(of: selectedRange) {
+            requestOffset = 0
             Task { await load() }
         }
     }
@@ -306,25 +310,49 @@ struct TokenUsageView: View {
     private var recentRequests: some View {
         GroupBox("最近请求") {
             if let requests, !requests.items.isEmpty {
-                Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 9) {
-                    GridRow {
-                        Text("时间").fontWeight(.semibold)
-                        Text("模型").fontWeight(.semibold)
-                        Text("结果").fontWeight(.semibold)
-                        Text("Tokens").fontWeight(.semibold)
-                        Text("延迟").fontWeight(.semibold)
-                    }
-                    Divider()
-                    ForEach(requests.items.prefix(20)) { item in
+                VStack(alignment: .leading, spacing: 12) {
+                    Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 9) {
                         GridRow {
-                            Text(shortTime(item.time))
-                                .foregroundStyle(.secondary)
-                            Text(item.model).lineLimit(1)
-                            Text(item.result)
-                                .foregroundStyle(item.failed ? .red : .green)
-                            Text(item.totalTokens.formatted())
-                            Text(duration(item.latencyNS))
+                            Text("时间").fontWeight(.semibold)
+                            Text("模型").fontWeight(.semibold)
+                            Text("结果").fontWeight(.semibold)
+                            Text("Tokens").fontWeight(.semibold)
+                            Text("延迟").fontWeight(.semibold)
                         }
+                        Divider()
+                        ForEach(requests.items) { item in
+                            GridRow {
+                                Text(shortTime(item.time))
+                                    .foregroundStyle(.secondary)
+                                Text(item.model).lineLimit(1)
+                                Text(item.result)
+                                    .foregroundStyle(item.failed ? .red : .green)
+                                Text(item.totalTokens.formatted())
+                                Text(duration(item.latencyNS))
+                            }
+                        }
+                    }
+
+                    Divider()
+                    HStack {
+                        if let range = requests.displayedRange {
+                            Text("第 \(range.lowerBound)–\(range.upperBound) 条，共 \(requests.total) 条")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if isLoadingRequests {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Button("上一页", systemImage: "chevron.left") {
+                            Task { await changeRequestPage(by: -1) }
+                        }
+                        .disabled(!requests.hasPreviousPage || isLoadingRequests)
+                        Button("下一页", systemImage: "chevron.right") {
+                            Task { await changeRequestPage(by: 1) }
+                        }
+                        .disabled(!requests.hasNextPage || isLoadingRequests)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -354,11 +382,19 @@ struct TokenUsageView: View {
                 managementKey: key
             )
             async let loadedCosts = client.fetchTokenUsageCosts(range: selectedRange, node: node)
-            async let loadedRequests = client.fetchTokenUsageRequests(range: selectedRange, node: node)
+            async let loadedRequests = client.fetchTokenUsageRequests(
+                range: selectedRange,
+                node: node,
+                offset: requestOffset,
+                limit: requestPageSize
+            )
             let result = try await loadedStats
             stats = result
             costs = try? await loadedCosts
             requests = try? await loadedRequests
+            if let requests {
+                requestOffset = requests.offset
+            }
         } catch {
             stats = nil
             costs = nil
@@ -369,6 +405,25 @@ struct TokenUsageView: View {
                     ? "插件未安装、未启用，或当前 CLIProxyAPI 版本不支持该插件。"
                     : text
             )
+        }
+    }
+
+    @MainActor
+    private func changeRequestPage(by pageDelta: Int) async {
+        let targetOffset = max(0, requestOffset + pageDelta * requestPageSize)
+        isLoadingRequests = true
+        defer { isLoadingRequests = false }
+        do {
+            let page = try await client.fetchTokenUsageRequests(
+                range: selectedRange,
+                node: node,
+                offset: targetOffset,
+                limit: requestPageSize
+            )
+            requests = page
+            requestOffset = page.offset
+        } catch {
+            message = .error(ManagementAPIClient.friendlyMessage(for: error))
         }
     }
 

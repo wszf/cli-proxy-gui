@@ -217,6 +217,19 @@ struct UsageRequestPage: Codable, Equatable, Sendable {
     let offset: Int
     let limit: Int
     let items: [UsageRequestItem]
+
+    var hasPreviousPage: Bool {
+        offset > 0
+    }
+
+    var hasNextPage: Bool {
+        offset + items.count < total
+    }
+
+    var displayedRange: ClosedRange<Int>? {
+        guard !items.isEmpty else { return nil }
+        return (offset + 1)...(offset + items.count)
+    }
 }
 
 struct ModelUsageRow: Identifiable, Equatable, Sendable {
