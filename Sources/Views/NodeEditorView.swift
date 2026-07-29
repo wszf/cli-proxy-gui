@@ -34,6 +34,15 @@ struct NodeEditorView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
+            if usesInsecureHTTP {
+                Label(
+                    "HTTP 不会加密 Management Key 和管理数据，仅应在可信内网使用。",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
+            }
+
             HStack {
                 Spacer()
                 Button("取消") { dismiss() }
@@ -64,6 +73,10 @@ struct NodeEditorView: View {
             && (editedNode != nil || !managementKey.isEmpty)
     }
 
+    private var usesInsecureHTTP: Bool {
+        URL(string: ProxyNode.normalize(address))?.scheme?.lowercased() == "http"
+    }
+
     private func save() {
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         if let node = editedNode {
@@ -74,4 +87,3 @@ struct NodeEditorView: View {
         dismiss()
     }
 }
-
