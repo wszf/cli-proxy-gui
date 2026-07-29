@@ -1,0 +1,25 @@
+# Changelog
+
+本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 的结构，
+版本号使用语义化版本。
+
+## Unreleased
+
+### Added
+
+- 开源项目文档、贡献规范、安全策略和持续集成。
+
+## 0.6.1 - 2026-07-29
+
+### Added
+
+- 多节点 Management API 管理。
+- 配置、API Keys、认证文件和日志页面。
+- CAP Token Usage Tracker 趋势、维度和请求分页。
+- 节点概览、凭证健康和 Codex、Claude、Kimi 账号额度。
+- Management Key 的 macOS Keychain 存储。
+- 单实例运行和原生应用图标。
+
+### Changed
+
+- 账号额度采用并发查询，并限制为每个节点至少间隔 3 分钟。
