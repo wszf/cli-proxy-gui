@@ -2,6 +2,25 @@ import XCTest
 @testable import CLIProxyGUI
 
 final class ProxyNodeTests: XCTestCase {
+    func testManagementKeyVaultRoundTrip() throws {
+        let firstNodeID = UUID()
+        let secondNodeID = UUID()
+        var vault = ManagementKeyVault()
+        vault[firstNodeID] = "first-key"
+        vault[secondNodeID] = "second-key"
+
+        let data = try JSONEncoder().encode(vault)
+        var decoded = try JSONDecoder().decode(ManagementKeyVault.self, from: data)
+
+        XCTAssertEqual(decoded.version, ManagementKeyVault.currentVersion)
+        XCTAssertEqual(decoded[firstNodeID], "first-key")
+        XCTAssertEqual(decoded[secondNodeID], "second-key")
+
+        decoded[firstNodeID] = nil
+        XCTAssertNil(decoded[firstNodeID])
+        XCTAssertEqual(decoded[secondNodeID], "second-key")
+    }
+
     func testSingleInstanceLockExcludesSecondOwnerAndReleases() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)

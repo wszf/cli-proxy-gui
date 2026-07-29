@@ -115,10 +115,11 @@ final class NodeStore: ObservableObject {
     }
 
     func refreshAll() async {
+        let managementKeys = KeychainStore.readAll(for: nodes.map(\.id))
         await withTaskGroup(of: (UUID, NodeSnapshot).self) { group in
             for node in nodes {
                 snapshots[node.id] = NodeSnapshot(state: .checking)
-                guard let key = KeychainStore.read(for: node.id), !key.isEmpty else {
+                guard let key = managementKeys[node.id], !key.isEmpty else {
                     snapshots[node.id] = NodeSnapshot(
                         state: .offline("尚未保存 Management Key"),
                         lastChecked: Date()
@@ -135,7 +136,7 @@ final class NodeStore: ObservableObject {
             }
         }
 
-        await refreshCredentialQuotasForOnlineNodes()
+        await refreshCredentialQuotasForOnlineNodes(managementKeys: managementKeys)
     }
 
     func openManagementPage(for node: ProxyNode) {
@@ -167,10 +168,14 @@ final class NodeStore: ObservableObject {
         credentialQuotaStates[node.id] = .loaded
     }
 
-    private func refreshCredentialQuotasForOnlineNodes() async {
+    private func refreshCredentialQuotasForOnlineNodes(
+        managementKeys suppliedManagementKeys: [UUID: String]? = nil
+    ) async {
+        let managementKeys = suppliedManagementKeys
+            ?? KeychainStore.readAll(for: nodes.map(\.id))
         await withTaskGroup(of: (UUID, Int, [CredentialQuotaSummary]?).self) { group in
             for node in nodes where snapshots[node.id]?.state == .online {
-                guard let key = KeychainStore.read(for: node.id),
+                guard let key = managementKeys[node.id],
                       !key.isEmpty,
                       beginCredentialQuotaRefresh(for: node.id)
                 else {
