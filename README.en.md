@@ -2,6 +2,9 @@
 
 English | [简体中文](README.md)
 
+[![CI](https://github.com/wszf/cli-proxy-gui/actions/workflows/ci.yml/badge.svg)](https://github.com/wszf/cli-proxy-gui/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/wszf/cli-proxy-gui)](https://github.com/wszf/cli-proxy-gui/releases/latest)
+
 CLIProxy GUI is a native macOS SwiftUI client for managing multiple
 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) nodes from one place.
 
@@ -39,6 +42,18 @@ The application UI is currently in Simplified Chinese.
 - Xcode 26 to build from source
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) when changing project settings
 - `cap-token-usage-tracker` on the node for the usage dashboard
+
+## Install
+
+Download the `macOS-universal.zip` archive from
+[GitHub Releases](https://github.com/wszf/cli-proxy-gui/releases/latest), extract it,
+and move `CLIProxyGUI.app` to Applications. The same archive supports both Apple
+Silicon and Intel Macs.
+
+Automated builds are currently ad-hoc signed and not notarized by Apple. If Gatekeeper
+blocks the first launch, right-click the app in Finder and choose **Open**, or approve
+it in **System Settings → Privacy & Security**. Only download builds from this
+repository's Releases page.
 
 ## Usage
 

@@ -2,6 +2,9 @@
 
 [English](README.en.md) | 简体中文
 
+[![CI](https://github.com/wszf/cli-proxy-gui/actions/workflows/ci.yml/badge.svg)](https://github.com/wszf/cli-proxy-gui/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/wszf/cli-proxy-gui)](https://github.com/wszf/cli-proxy-gui/releases/latest)
+
 CLIProxy GUI 是一个只面向 macOS 的原生 SwiftUI 客户端，用来统一管理多个
 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 节点。
 
@@ -34,6 +37,16 @@ CLIProxy GUI 是一个只面向 macOS 的原生 SwiftUI 客户端，用来统一
 - 从源码构建需要 Xcode 26
 - 修改项目配置时建议安装 [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - 用量页面需要节点安装并启用 `cap-token-usage-tracker`
+
+## 安装
+
+从 [GitHub Releases](https://github.com/wszf/cli-proxy-gui/releases/latest)
+下载 `macOS-universal.zip`，解压后把 `CLIProxyGUI.app` 移入“应用程序”。
+同一份安装包同时支持 Apple Silicon 和 Intel Mac。
+
+自动构建目前使用临时签名，尚未经过 Apple 公证。首次启动如被 Gatekeeper 阻止，
+请在 Finder 中右键应用并选择“打开”，或前往“系统设置 → 隐私与安全性”确认打开。
+不要从非本仓库 Release 的来源下载应用。
 
 ## 使用
 

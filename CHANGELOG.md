@@ -5,9 +5,12 @@
 
 ## Unreleased
 
+## 0.6.2 - 2026-07-29
+
 ### Added
 
 - 开源项目文档、贡献规范、安全策略和持续集成。
+- 通过 Git 标签自动构建通用 macOS 应用并发布 GitHub Release。
 
 ### Fixed
 

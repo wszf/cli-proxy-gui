@@ -14,6 +14,16 @@
 
 ## 构建发行包
 
+推送与版本一致的 `vX.Y.Z` 标签后，`.github/workflows/release.yml` 会运行测试，
+构建 arm64 和 x86_64 通用应用，并创建带有 SHA-256 校验文件的 GitHub Release：
+
+```bash
+git tag -a v0.7.0 -m "CLIProxy GUI v0.7.0"
+git push origin v0.7.0
+```
+
+当前自动化产物使用临时签名，适用于公开测试，但未经过 Apple 公证。
+
 公开分发的 macOS 应用应使用 Developer ID Application 证书签名，并提交 Apple
 Notary Service 公证。签名身份、Team ID 和公证凭证属于维护者私密配置，不应写入
 仓库或 GitHub Actions 日志。
