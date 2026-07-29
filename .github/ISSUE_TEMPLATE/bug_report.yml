@@ -1,0 +1,71 @@
+name: Bug report
+description: 报告可复现的功能或兼容性问题
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先删除域名、邮箱、密钥、请求内容和认证文件名。安全问题请使用私密漏洞报告。
+  - type: input
+    id: app-version
+    attributes:
+      label: 应用版本
+      placeholder: 例如 0.6.1 或提交 SHA
+    validations:
+      required: true
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS 版本
+      placeholder: 例如 macOS 15.5
+    validations:
+      required: true
+  - type: input
+    id: server-version
+    attributes:
+      label: CLIProxyAPI 版本
+      placeholder: 例如 v6.x.x
+    validations:
+      required: true
+  - type: dropdown
+    id: transport
+    attributes:
+      label: 节点连接方式
+      options:
+        - HTTPS
+        - HTTP
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 实际发生了什么？期望行为是什么？
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开……
+        2. 点击……
+        3. 看到……
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: 已脱敏的错误信息或截图
+      description: 不要粘贴 Management Key、API Key、OAuth Token 或完整配置。
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: 检查项
+      options:
+        - label: 我已确认报告中没有凭证或个人信息。
+          required: true
+        - label: 我已搜索现有 Issue，未找到相同问题。
+          required: true

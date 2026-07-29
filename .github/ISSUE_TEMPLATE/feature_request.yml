@@ -1,0 +1,30 @@
+name: Feature request
+description: 建议一个聚焦的新能力或体验改进
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 使用场景
+      description: 现在遇到了什么问题？
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案
+      description: 希望应用如何工作？
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 替代方案
+      description: 是否尝试过其他方式？
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Management API 或插件依赖
+      description: 如果依赖特定接口，请提供公开文档或已脱敏的响应结构。
