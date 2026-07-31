@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+### Added
+
+- API Keys 页面新增 Claude Code、Codex、模型查询与 API 测试示例，支持按 Key 生成并一键复制。
+
 ## 0.6.2 - 2026-07-29
 
 ### Added

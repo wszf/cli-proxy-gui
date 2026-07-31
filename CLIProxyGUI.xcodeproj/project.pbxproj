@@ -22,6 +22,7 @@
 		89AF869ED9EEAC99F1044F1C /* AuthFilesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C419627B2CAA75F270DB7E1F /* AuthFilesView.swift */; };
 		8A43985BFA04B6E30D1C3BC9 /* ConfigEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5816AFFF81D3C136998E1446 /* ConfigEditorView.swift */; };
 		B782030D4D6C01DB2C8C465B /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5134A1040275490E19D925E2 /* KeychainStore.swift */; };
+		B8765B2950D9368C21D7C158 /* ClientConfigurationExamplesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FDC3DFF443444D37918E7E0 /* ClientConfigurationExamplesView.swift */; };
 		BAE0B2FBDEA9CCAA2056615F /* ManagementModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89BCE86FA76E55E93F00CDC3 /* ManagementModels.swift */; };
 		D5B9D59A757BA71DCA39CB90 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4AB4ADAC519CB34D4735D6B7 /* Assets.xcassets */; };
 		D8834DABE4784F13F74221AA /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5E8CCA945E979F6663323FC /* ContentView.swift */; };
@@ -59,6 +60,7 @@
 		75E6BBAEAE1D1CF738C649F9 /* TokenUsageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenUsageView.swift; sourceTree = "<group>"; };
 		7F561732C11EED25E8C070AC /* ProxyNodeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyNodeTests.swift; sourceTree = "<group>"; };
 		89BCE86FA76E55E93F00CDC3 /* ManagementModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagementModels.swift; sourceTree = "<group>"; };
+		9FDC3DFF443444D37918E7E0 /* ClientConfigurationExamplesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientConfigurationExamplesView.swift; sourceTree = "<group>"; };
 		BA25A684932CC2F9A360E510 /* ManagementAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagementAPIClient.swift; sourceTree = "<group>"; };
 		C419627B2CAA75F270DB7E1F /* AuthFilesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFilesView.swift; sourceTree = "<group>"; };
 		C775CB97AEE62928D81164B4 /* CLIProxyGUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CLIProxyGUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -142,6 +144,7 @@
 			children = (
 				759560C14E9D6C7704912B65 /* APIKeysView.swift */,
 				C419627B2CAA75F270DB7E1F /* AuthFilesView.swift */,
+				9FDC3DFF443444D37918E7E0 /* ClientConfigurationExamplesView.swift */,
 				5816AFFF81D3C136998E1446 /* ConfigEditorView.swift */,
 				387400CC073D8064FC44AD92 /* LogsView.swift */,
 				44E49CCC5C4148225908A3BE /* PageMessage.swift */,
@@ -273,6 +276,7 @@
 				61D259B0CA690EA4AB41D446 /* AppDelegate.swift in Sources */,
 				89AF869ED9EEAC99F1044F1C /* AuthFilesView.swift in Sources */,
 				4111CA8378E14C9070355809 /* CLIProxyGUIApp.swift in Sources */,
+				B8765B2950D9368C21D7C158 /* ClientConfigurationExamplesView.swift in Sources */,
 				8A43985BFA04B6E30D1C3BC9 /* ConfigEditorView.swift in Sources */,
 				D8834DABE4784F13F74221AA /* ContentView.swift in Sources */,
 				2F490796A26D507438787B1A /* CredentialQuotaParser.swift in Sources */,

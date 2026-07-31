@@ -61,6 +61,57 @@ final class ProxyNodeTests: XCTestCase {
         )
     }
 
+    func testBuildsClaudeCodeConfigurationExample() {
+        let example = ClientConfigurationExamples.claudeCode(
+            nodeAddress: "https://proxy.example.com/",
+            apiKey: "sk-test"
+        )
+
+        XCTAssertTrue(example.contains("ANTHROPIC_BASE_URL='https://proxy.example.com'"))
+        XCTAssertTrue(example.contains("ANTHROPIC_AUTH_TOKEN='sk-test'"))
+        XCTAssertTrue(example.hasSuffix("claude"))
+    }
+
+    func testBuildsCodexConfigurationExample() {
+        let config = ClientConfigurationExamples.codexConfig(
+            nodeAddress: "proxy.example.com:8317",
+            apiKey: "key-with-\"quote"
+        )
+
+        XCTAssertTrue(config.contains("model_provider = \"cliproxyapi\""))
+        XCTAssertTrue(config.contains("model = \"gpt-5.6-sol\""))
+        XCTAssertTrue(config.contains("model_reasoning_effort = \"xhigh\""))
+        XCTAssertTrue(config.contains("plan_mode_reasoning_effort = \"xhigh\""))
+        XCTAssertTrue(config.contains("base_url = \"http://proxy.example.com:8317/v1\""))
+        XCTAssertTrue(config.contains("wire_api = \"responses\""))
+        XCTAssertTrue(config.contains("experimental_bearer_token = \"key-with-\\\"quote\""))
+        XCTAssertTrue(config.contains("stream_idle_timeout_ms = 900000"))
+    }
+
+    func testBuildsModelAndAPIExamples() {
+        let models = ClientConfigurationExamples.availableModels(
+            nodeAddress: "https://proxy.example.com/",
+            apiKey: "key-with-'quote"
+        )
+        let responses = ClientConfigurationExamples.responsesRequest(
+            nodeAddress: "https://proxy.example.com/",
+            apiKey: "sk-test"
+        )
+        let claude = ClientConfigurationExamples.claudeMessagesRequest(
+            nodeAddress: "https://proxy.example.com/",
+            apiKey: "sk-test"
+        )
+
+        XCTAssertTrue(models.contains("'https://proxy.example.com/v1/models'"))
+        XCTAssertTrue(models.contains("'Authorization: Bearer key-with-'\"'\"'quote'"))
+        XCTAssertTrue(models.contains("jq -r '.data[].id'"))
+        XCTAssertTrue(responses.contains("'https://proxy.example.com/v1/responses'"))
+        XCTAssertTrue(responses.contains("\"model\": \"gpt-5.6-sol\""))
+        XCTAssertTrue(claude.contains("'https://proxy.example.com/v1/messages'"))
+        XCTAssertTrue(claude.contains("'anthropic-version: 2023-06-01'"))
+        XCTAssertTrue(claude.contains("\"model\": \"claude-sonnet-4-6\""))
+    }
+
     func testExtractsDashboardMetrics() throws {
         let config = try JSONSerialization.jsonObject(with: Data("""
         {
