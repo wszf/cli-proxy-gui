@@ -142,6 +142,30 @@ final class ProxyNodeTests: XCTestCase {
         XCTAssertEqual(runtime.requestRetry, 3)
     }
 
+    func testGroupsAvailableModelsByProviderFamily() throws {
+        let response = try JSONSerialization.jsonObject(with: Data("""
+        {
+          "data": [
+            {"id": "gpt-5.6-sol", "display_name": "GPT 5.6 Sol"},
+            {"id": "o3"},
+            {"id": "claude-sonnet-4-6"},
+            {"id": "kimi-k2.7-code", "alias": "Kimi Code"},
+            {"id": "custom-model"},
+            {"id": "gpt-5.6-sol"}
+          ]
+        }
+        """.utf8))
+
+        let groups = JSONMetrics.availableModelGroups(in: response)
+
+        XCTAssertEqual(groups.map(\.label), ["GPT", "Claude", "Kimi", "其他"])
+        XCTAssertEqual(groups[0].models.map(\.name), ["gpt-5.6-sol", "o3"])
+        XCTAssertEqual(groups[0].models.first?.alias, "GPT 5.6 Sol")
+        XCTAssertEqual(groups[1].models.map(\.name), ["claude-sonnet-4-6"])
+        XCTAssertEqual(groups[2].models.first?.alias, "Kimi Code")
+        XCTAssertEqual(groups[3].models.map(\.name), ["custom-model"])
+    }
+
     func testExtractsCredentialHealth() throws {
         let authFiles = try JSONSerialization.jsonObject(with: Data("""
         {

@@ -43,11 +43,15 @@ struct ManagementAPIClient: Sendable {
                 keys: ["api-keys", "api_keys"],
                 in: configJSON
             )
-            let modelCount: Int?
+            let fetchedModelGroups: [AvailableModelGroup]?
             if let apiKey {
-                modelCount = try? await fetchAvailableModelCount(node: node, apiKey: apiKey)
+                fetchedModelGroups = try? await fetchAvailableModels(node: node, apiKey: apiKey)
             } else {
-                modelCount = nil
+                fetchedModelGroups = nil
+            }
+            let modelGroups = fetchedModelGroups ?? []
+            let modelCount = fetchedModelGroups.map { groups in
+                groups.reduce(0) { $0 + $1.models.count }
             }
 
             let latestResult = await latestResponse
@@ -76,6 +80,7 @@ struct ManagementAPIClient: Sendable {
                 providerCount: JSONMetrics.providerCount(in: configJSON),
                 apiKeyCount: JSONMetrics.arrayCount(keys: ["api-keys", "api_keys"], in: configJSON),
                 availableModelCount: modelCount,
+                availableModelGroups: modelGroups,
                 routingStrategy: JSONMetrics.string(keys: ["routing-strategy", "routing_strategy"], in: configJSON),
                 plugins: pluginJSON.flatMap(JSONMetrics.pluginOverview),
                 dailyUsage: usageResult.map {
@@ -240,19 +245,18 @@ struct ManagementAPIClient: Sendable {
         _ = try await request(path: "logs", node: node, key: managementKey, method: "DELETE")
     }
 
-    private func fetchAvailableModelCount(node: ProxyNode, apiKey: String) async throws -> Int {
+    private func fetchAvailableModels(
+        node: ProxyNode,
+        apiKey: String
+    ) async throws -> [AvailableModelGroup] {
         let result = try await request(
             path: "v1/models",
             baseURL: try rootURL(for: node),
             key: apiKey,
             timeout: 6
         )
-        guard let object = try JSONSerialization.jsonObject(with: result.data) as? [String: Any],
-              let models = object["data"] as? [[String: Any]]
-        else {
-            throw APIError.invalidResponse
-        }
-        return Set(models.compactMap { Self.text($0["id"]) }).count
+        let object = try JSONSerialization.jsonObject(with: result.data)
+        return JSONMetrics.availableModelGroups(in: object)
     }
 
     func fetchCredentialQuotas(
@@ -700,6 +704,98 @@ enum JSONMetrics {
             active: active.count,
             tokenTrackerActive: tracker
         )
+    }
+
+    static func availableModelGroups(in object: Any) -> [AvailableModelGroup] {
+        let rawModels: [Any]
+        if let models = object as? [Any] {
+            rawModels = models
+        } else if let dictionary = object as? [String: Any],
+                  let models = (dictionary["data"] ?? dictionary["models"]) as? [Any]
+        {
+            rawModels = models
+        } else {
+            return []
+        }
+
+        var seenNames = Set<String>()
+        let models = rawModels.compactMap { value -> AvailableModelItem? in
+            let name: String?
+            let alias: String?
+            if let value = value as? String {
+                name = text(value)
+                alias = nil
+            } else if let dictionary = value as? [String: Any] {
+                name = text(
+                    dictionary["id"]
+                        ?? dictionary["name"]
+                        ?? dictionary["model"]
+                        ?? dictionary["value"]
+                )
+                let candidate = text(
+                    dictionary["alias"]
+                        ?? dictionary["display_name"]
+                        ?? dictionary["displayName"]
+                )
+                alias = candidate == name ? nil : candidate
+            } else {
+                return nil
+            }
+            guard let name else { return nil }
+            let deduplicationKey = name.lowercased()
+            guard seenNames.insert(deduplicationKey).inserted else { return nil }
+            return AvailableModelItem(name: name, alias: alias)
+        }
+
+        struct Definition {
+            let id: String
+            let label: String
+            let patterns: [String]
+        }
+        let definitions = [
+            Definition(id: "gpt", label: "GPT", patterns: ["gpt", "chatgpt"]),
+            Definition(id: "claude", label: "Claude", patterns: ["claude"]),
+            Definition(id: "gemini", label: "Gemini", patterns: ["gemini", "gai"]),
+            Definition(id: "kimi", label: "Kimi", patterns: ["kimi"]),
+            Definition(id: "qwen", label: "Qwen", patterns: ["qwen"]),
+            Definition(id: "glm", label: "GLM", patterns: ["glm", "chatglm"]),
+            Definition(id: "grok", label: "Grok", patterns: ["grok"]),
+            Definition(id: "deepseek", label: "DeepSeek", patterns: ["deepseek"]),
+            Definition(id: "minimax", label: "MiniMax", patterns: ["minimax", "abab"])
+        ]
+        var grouped = Dictionary(uniqueKeysWithValues: definitions.map { ($0.id, [AvailableModelItem]()) })
+        var other: [AvailableModelItem] = []
+
+        for model in models {
+            let searchable = "\(model.name) \(model.alias ?? "")".lowercased()
+            let definition = definitions.first { definition in
+                definition.patterns.contains { searchable.contains($0) }
+                    || (definition.id == "gpt"
+                        && searchable.range(of: #"\bo[0-9]+\.?"#, options: .regularExpression) != nil)
+            }
+            if let definition {
+                grouped[definition.id, default: []].append(model)
+            } else {
+                other.append(model)
+            }
+        }
+
+        var result = definitions.compactMap { definition -> AvailableModelGroup? in
+            guard let items = grouped[definition.id], !items.isEmpty else { return nil }
+            return AvailableModelGroup(
+                id: definition.id,
+                label: definition.label,
+                models: items.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            )
+        }
+        if !other.isEmpty {
+            result.append(AvailableModelGroup(
+                id: "other",
+                label: "其他",
+                models: other.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            ))
+        }
+        return result
     }
 
     static func arrayCount(keys: [String], in object: Any) -> Int? {

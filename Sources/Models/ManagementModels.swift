@@ -27,6 +27,18 @@ struct CredentialHealth: Equatable, Sendable {
     let providers: [CredentialProviderSummary]
 }
 
+struct AvailableModelItem: Identifiable, Equatable, Sendable {
+    var id: String { name.lowercased() }
+    let name: String
+    let alias: String?
+}
+
+struct AvailableModelGroup: Identifiable, Equatable, Sendable {
+    let id: String
+    let label: String
+    let models: [AvailableModelItem]
+}
+
 struct CredentialQuotaSummary: Identifiable, Equatable, Sendable {
     let id: String
     let provider: String

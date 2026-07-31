@@ -70,6 +70,7 @@ struct NodeDashboardView: View {
                 }
 
                 primaryMetrics
+                availableModels
                 credentialHealth
                 runtimeStatus
                 pluginStatus
@@ -98,6 +99,25 @@ struct NodeDashboardView: View {
                 }
             }
             .padding(28)
+        }
+    }
+
+    @ViewBuilder
+    private var availableModels: some View {
+        if !snapshot.availableModelGroups.isEmpty {
+            GroupBox {
+                VStack(spacing: 14) {
+                    ForEach(snapshot.availableModelGroups) { group in
+                        AvailableModelGroupCard(group: group)
+                    }
+                }
+                .padding(6)
+            } label: {
+                Label(
+                    "支持的模型 · \(snapshot.availableModelCount ?? 0)",
+                    systemImage: "square.stack.3d.up"
+                )
+            }
         }
     }
 
@@ -559,6 +579,136 @@ private struct CredentialQuotaCard: View {
         if remaining <= 15 { return .red }
         if remaining <= 35 { return .orange }
         return .green
+    }
+}
+
+private struct AvailableModelGroupCard: View {
+    let group: AvailableModelGroup
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 9) {
+                Image(systemName: symbol)
+                    .font(.title3)
+                    .foregroundStyle(.tint)
+                    .frame(width: 24)
+                Text(group.label)
+                    .font(.headline)
+                Spacer()
+                Text("可用模型 \(group.models.count) 个")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            ModelTagFlowLayout(spacing: 8) {
+                ForEach(group.models) { model in
+                    HStack(spacing: 5) {
+                        Text(model.name)
+                            .font(.system(.callout, design: .monospaced, weight: .semibold))
+                        if let alias = model.alias {
+                            Text(alias)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .lineLimit(1)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.quaternary.opacity(0.35), in: Capsule())
+                    .overlay {
+                        Capsule()
+                            .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                    }
+                    .help(model.alias.map { "\(model.name) · \($0)" } ?? model.name)
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.18), in: RoundedRectangle(cornerRadius: 11))
+        .overlay {
+            RoundedRectangle(cornerRadius: 11)
+                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+        }
+    }
+
+    private var symbol: String {
+        switch group.id {
+        case "gpt": "chevron.left.forwardslash.chevron.right"
+        case "claude": "sparkles"
+        case "gemini": "diamond"
+        case "kimi": "moon.stars"
+        case "qwen": "cloud"
+        case "glm": "brain"
+        case "grok": "bolt"
+        case "deepseek": "water.waves"
+        case "minimax": "m.square"
+        default: "cpu"
+        }
+    }
+}
+
+private struct ModelTagFlowLayout: Layout {
+    let spacing: CGFloat
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        let availableWidth = proposal.width ?? .infinity
+        var currentX: CGFloat = 0
+        var currentY: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var measuredWidth: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            let requiredWidth = currentX == 0 ? size.width : currentX + spacing + size.width
+            if currentX > 0, requiredWidth > availableWidth {
+                currentY += rowHeight + spacing
+                currentX = 0
+                rowHeight = 0
+            }
+            if currentX > 0 { currentX += spacing }
+            currentX += size.width
+            rowHeight = max(rowHeight, size.height)
+            measuredWidth = max(measuredWidth, currentX)
+        }
+
+        return CGSize(
+            width: proposal.width ?? measuredWidth,
+            height: subviews.isEmpty ? 0 : currentY + rowHeight
+        )
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        var currentX: CGFloat = 0
+        var currentY: CGFloat = 0
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            let requiredWidth = currentX == 0 ? size.width : currentX + spacing + size.width
+            if currentX > 0, requiredWidth > bounds.width {
+                currentY += rowHeight + spacing
+                currentX = 0
+                rowHeight = 0
+            }
+            if currentX > 0 { currentX += spacing }
+            subview.place(
+                at: CGPoint(x: bounds.minX + currentX, y: bounds.minY + currentY),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(size)
+            )
+            currentX += size.width
+            rowHeight = max(rowHeight, size.height)
+        }
     }
 }
 
