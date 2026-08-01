@@ -209,7 +209,7 @@ struct ClientConfigurationExamplesView: View {
                     .foregroundStyle(.secondary)
                 Picker("API Key", selection: $selectedKeyIndex) {
                     ForEach(apiKeys.indices, id: \.self) { index in
-                        Text(masked(apiKeys[index])).tag(index)
+                        Text("\(index + 1). \(masked(apiKeys[index]))").tag(index)
                     }
                 }
                 .labelsHidden()
