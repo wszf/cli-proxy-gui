@@ -282,6 +282,10 @@ struct PriceSyncSettings: Codable, Equatable, Sendable {
     var ignoredSuffixes: [String]
     var mappings: [PriceSyncMapping]
 
+    private enum CodingKeys: String, CodingKey {
+        case providerPriority, ignoredSuffixes, mappings
+    }
+
     init(
         providerPriority: [String] = [],
         ignoredSuffixes: [String] = [],
@@ -290,6 +294,16 @@ struct PriceSyncSettings: Codable, Equatable, Sendable {
         self.providerPriority = providerPriority
         self.ignoredSuffixes = ignoredSuffixes
         self.mappings = mappings
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        // Older plugin versions and an empty price book may encode mappings as
+        // null. Treat null/missing arrays as empty so the rest of the price
+        // book remains readable.
+        providerPriority = try container.decodeIfPresent([String].self, forKey: .providerPriority) ?? []
+        ignoredSuffixes = try container.decodeIfPresent([String].self, forKey: .ignoredSuffixes) ?? []
+        mappings = try container.decodeIfPresent([PriceSyncMapping].self, forKey: .mappings) ?? []
     }
 }
 

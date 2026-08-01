@@ -413,6 +413,49 @@ final class ProxyNodeTests: XCTestCase {
         XCTAssertEqual(book.syncSettings.providerPriority, ["openai", "anthropic"])
     }
 
+    func testDecodesTokenUsagePriceBookWithNullMappings() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let book = try decoder.decode(TokenUsagePriceBook.self, from: Data("""
+        {
+          "schema_version": 2,
+          "revision": 2,
+          "prices": {
+            "kimi-k2": {
+              "input": 0.575,
+              "output": 2.3,
+              "cache_read": 0,
+              "cache_creation": 0,
+              "source": "models.dev",
+              "catalog_provider": "302ai",
+              "catalog_model": "kimi-k2-thinking",
+              "updated_at": "2026-08-01T18:22:17.955061908Z"
+            }
+          },
+          "sync_settings": {
+            "provider_priority": ["openai", "google", "anthropic"],
+            "ignored_suffixes": ["-thinking"],
+            "mappings": null
+          },
+          "last_sync": {
+            "source": "models.dev",
+            "completed_at": "2026-08-01T18:22:17.955061908Z",
+            "observed": 8,
+            "matched": 7,
+            "created": 0,
+            "updated": 7,
+            "skipped_manual": 0,
+            "unmatched": 1
+          }
+        }
+        """.utf8))
+
+        XCTAssertEqual(book.schemaVersion, 2)
+        XCTAssertEqual(book.prices["kimi-k2"]?.input, 0.575)
+        XCTAssertTrue(book.syncSettings.mappings.isEmpty)
+        XCTAssertEqual(book.lastSync?.matched, 7)
+    }
+
     func testAggregatesUsageByModel() {
         let first = usageGroup(model: "gpt-5", provider: "openai", requests: 2, tokens: 100)
         let second = usageGroup(model: "gpt-5", provider: "azure", requests: 1, tokens: 50)
