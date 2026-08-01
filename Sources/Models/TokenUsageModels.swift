@@ -178,6 +178,167 @@ struct TokenUsageCosts: Codable, Equatable, Sendable {
     let summary: UsageCostAmounts
 }
 
+struct ContextPriceTier: Codable, Equatable, Sendable {
+    var threshold: UInt64
+    var input: Double
+    var output: Double
+    var cacheRead: Double
+    var cacheCreation: Double
+
+    private enum CodingKeys: String, CodingKey {
+        case threshold, input, output
+        case cacheRead, cacheCreation
+    }
+
+    init(
+        threshold: UInt64,
+        input: Double = 0,
+        output: Double = 0,
+        cacheRead: Double = 0,
+        cacheCreation: Double = 0
+    ) {
+        self.threshold = threshold
+        self.input = input
+        self.output = output
+        self.cacheRead = cacheRead
+        self.cacheCreation = cacheCreation
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        threshold = try container.decodeIfPresent(UInt64.self, forKey: .threshold) ?? 0
+        input = try container.decodeIfPresent(Double.self, forKey: .input) ?? 0
+        output = try container.decodeIfPresent(Double.self, forKey: .output) ?? 0
+        cacheRead = try container.decodeIfPresent(Double.self, forKey: .cacheRead) ?? 0
+        cacheCreation = try container.decodeIfPresent(Double.self, forKey: .cacheCreation) ?? 0
+    }
+}
+
+struct ModelPrice: Codable, Equatable, Sendable {
+    var input: Double
+    var output: Double
+    var cacheRead: Double
+    var cacheCreation: Double
+    var contextTiers: [ContextPriceTier]
+    var accountingMode: String
+    var source: String
+    var catalogProvider: String
+    var catalogModel: String
+    var updatedAt: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case input, output
+        case cacheRead, cacheCreation, contextTiers, accountingMode
+        case source
+        case catalogProvider, catalogModel, updatedAt
+    }
+
+    init(
+        input: Double = 0,
+        output: Double = 0,
+        cacheRead: Double = 0,
+        cacheCreation: Double = 0,
+        contextTiers: [ContextPriceTier] = [],
+        accountingMode: String = "",
+        source: String = "manual",
+        catalogProvider: String = "",
+        catalogModel: String = "",
+        updatedAt: String? = nil
+    ) {
+        self.input = input
+        self.output = output
+        self.cacheRead = cacheRead
+        self.cacheCreation = cacheCreation
+        self.contextTiers = contextTiers
+        self.accountingMode = accountingMode
+        self.source = source
+        self.catalogProvider = catalogProvider
+        self.catalogModel = catalogModel
+        self.updatedAt = updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        input = try container.decodeIfPresent(Double.self, forKey: .input) ?? 0
+        output = try container.decodeIfPresent(Double.self, forKey: .output) ?? 0
+        cacheRead = try container.decodeIfPresent(Double.self, forKey: .cacheRead) ?? 0
+        cacheCreation = try container.decodeIfPresent(Double.self, forKey: .cacheCreation) ?? 0
+        contextTiers = try container.decodeIfPresent([ContextPriceTier].self, forKey: .contextTiers) ?? []
+        accountingMode = try container.decodeIfPresent(String.self, forKey: .accountingMode) ?? ""
+        source = try container.decodeIfPresent(String.self, forKey: .source) ?? "manual"
+        catalogProvider = try container.decodeIfPresent(String.self, forKey: .catalogProvider) ?? ""
+        catalogModel = try container.decodeIfPresent(String.self, forKey: .catalogModel) ?? ""
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+    }
+}
+
+struct PriceSyncMapping: Codable, Equatable, Sendable {
+    var source: String
+    var target: String
+}
+
+struct PriceSyncSettings: Codable, Equatable, Sendable {
+    var providerPriority: [String]
+    var ignoredSuffixes: [String]
+    var mappings: [PriceSyncMapping]
+
+    init(
+        providerPriority: [String] = [],
+        ignoredSuffixes: [String] = [],
+        mappings: [PriceSyncMapping] = []
+    ) {
+        self.providerPriority = providerPriority
+        self.ignoredSuffixes = ignoredSuffixes
+        self.mappings = mappings
+    }
+}
+
+struct PriceSyncMetadata: Codable, Equatable, Sendable {
+    let source: String
+    let completedAt: String
+    let observed: Int
+    let matched: Int
+    let created: Int
+    let updated: Int
+    let skippedManual: Int
+    let unmatched: Int
+}
+
+struct TokenUsagePriceBook: Codable, Equatable, Sendable {
+    let schemaVersion: UInt32
+    let revision: UInt64
+    var prices: [String: ModelPrice]
+    var syncSettings: PriceSyncSettings
+    let lastSync: PriceSyncMetadata?
+
+    init(
+        schemaVersion: UInt32 = 1,
+        revision: UInt64 = 0,
+        prices: [String: ModelPrice] = [:],
+        syncSettings: PriceSyncSettings = PriceSyncSettings(),
+        lastSync: PriceSyncMetadata? = nil
+    ) {
+        self.schemaVersion = schemaVersion
+        self.revision = revision
+        self.prices = prices
+        self.syncSettings = syncSettings
+        self.lastSync = lastSync
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, revision, prices, syncSettings, lastSync
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decodeIfPresent(UInt32.self, forKey: .schemaVersion) ?? 1
+        revision = try container.decodeIfPresent(UInt64.self, forKey: .revision) ?? 0
+        prices = try container.decodeIfPresent([String: ModelPrice].self, forKey: .prices) ?? [:]
+        syncSettings = try container.decodeIfPresent(PriceSyncSettings.self, forKey: .syncSettings) ?? PriceSyncSettings()
+        lastSync = try container.decodeIfPresent(PriceSyncMetadata.self, forKey: .lastSync)
+    }
+}
+
 struct UsageRequestItem: Codable, Equatable, Identifiable, Sendable {
     var id: UInt64 { sequence }
     let sequence: UInt64

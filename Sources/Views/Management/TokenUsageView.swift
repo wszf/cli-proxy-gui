@@ -14,12 +14,22 @@ struct TokenUsageView: View {
     @State private var message: PageMessage?
     @State private var dimensionQuery = ""
     @State private var requestOffset = 0
+    @State private var isShowingPriceBook = false
 
     private let client = ManagementAPIClient()
     private let requestPageSize = 50
 
     private var modelRows: [ModelUsageRow] {
         ModelUsageRow.aggregate(stats?.groups ?? [])
+    }
+
+    private var knownModelNames: [String] {
+        let dashboardModels = store.snapshot(for: node).availableModelGroups.flatMap { group in
+            group.models.map(\.name)
+        }
+        return Set(dashboardModels + modelRows.map(\.model)).sorted {
+            $0.localizedStandardCompare($1) == .orderedAscending
+        }
     }
 
     private var dimensionGroups: [UsageGroup] {
@@ -67,6 +77,12 @@ struct TokenUsageView: View {
             }
         }
         .task(id: node.id) { await load() }
+        .sheet(isPresented: $isShowingPriceBook, onDismiss: {
+            Task { await load() }
+        }) {
+            TokenUsagePriceView(node: node, modelNames: knownModelNames)
+                .environmentObject(store)
+        }
         .onChange(of: selectedRange) {
             requestOffset = 0
             Task { await load() }
@@ -87,6 +103,11 @@ struct TokenUsageView: View {
                 }
             }
             .frame(width: 140)
+            Button {
+                isShowingPriceBook = true
+            } label: {
+                Label("模型价格", systemImage: "tag")
+            }
             Button {
                 Task { await load() }
             } label: {

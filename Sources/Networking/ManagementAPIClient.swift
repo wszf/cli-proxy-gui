@@ -398,6 +398,60 @@ struct ManagementAPIClient: Sendable {
         return try usageDecoder.decode(TokenUsageCosts.self, from: result.data)
     }
 
+    func fetchTokenUsagePrices(node: ProxyNode) async throws -> TokenUsagePriceBook {
+        let result = try await request(
+            path: "v0/resource/plugins/cap-token-usage-tracker/prices",
+            baseURL: try rootURL(for: node),
+            key: ""
+        )
+        return try usageDecoder.decode(TokenUsagePriceBook.self, from: result.data)
+    }
+
+    func saveTokenUsagePrices(
+        prices: [String: ModelPrice],
+        syncSettings: PriceSyncSettings,
+        node: ProxyNode,
+        managementKey: String
+    ) async throws -> TokenUsagePriceBook {
+        let body = try usageEncoder.encode(
+            TokenUsagePriceSavePayload(prices: prices, syncSettings: syncSettings)
+        )
+        let result = try await request(
+            path: "plugins/cap-token-usage-tracker/prices",
+            node: node,
+            key: managementKey,
+            method: "PUT",
+            body: body,
+            contentType: "application/json"
+        )
+        return try usageDecoder.decode(TokenUsagePriceBook.self, from: result.data)
+    }
+
+    func syncTokenUsagePrices(
+        models: [String],
+        syncSettings: PriceSyncSettings? = nil,
+        node: ProxyNode,
+        managementKey: String
+    ) async throws -> TokenUsagePriceBook {
+        let body = try usageEncoder.encode(
+            TokenUsagePriceSyncPayload(
+                source: "models.dev",
+                models: Array(Set(models.filter { !$0.isEmpty })).sorted(),
+                syncSettings: syncSettings
+            )
+        )
+        let result = try await request(
+            path: "plugins/cap-token-usage-tracker/prices/sync",
+            node: node,
+            key: managementKey,
+            method: "POST",
+            body: body,
+            contentType: "application/json",
+            timeout: 30
+        )
+        return try usageDecoder.decode(TokenUsagePriceBook.self, from: result.data)
+    }
+
     func fetchTokenUsageRequests(
         range: UsageRange,
         node: ProxyNode,
@@ -421,6 +475,12 @@ struct ManagementAPIClient: Sendable {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return decoder
+    }
+
+    private var usageEncoder: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        return encoder
     }
 
     private func rootURL(for node: ProxyNode) throws -> URL {
@@ -561,6 +621,17 @@ struct ManagementAPIClient: Sendable {
         let seconds = timestamp > 10_000_000_000 ? Double(timestamp) / 1000 : Double(timestamp)
         return Date(timeIntervalSince1970: seconds)
     }
+}
+
+private struct TokenUsagePriceSavePayload: Encodable {
+    let prices: [String: ModelPrice]
+    let syncSettings: PriceSyncSettings
+}
+
+private struct TokenUsagePriceSyncPayload: Encodable {
+    let source: String
+    let models: [String]
+    let syncSettings: PriceSyncSettings?
 }
 
 enum APIError: LocalizedError {

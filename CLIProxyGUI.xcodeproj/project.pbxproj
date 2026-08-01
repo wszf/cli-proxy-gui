@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		05F8C001F2B0ADDA2230BD94 /* NodeDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A26F14BF4A5E04B71587ECE /* NodeDashboardView.swift */; };
+		180C32930B37ABBBBC5AF264 /* TokenUsagePriceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2156E9A1639269C7C8B6624 /* TokenUsagePriceView.swift */; };
 		1C5E9A4975FB141B7BAD98E8 /* ManagementAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA25A684932CC2F9A360E510 /* ManagementAPIClient.swift */; };
 		2F490796A26D507438787B1A /* CredentialQuotaParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECBF54FFD0E0BA87C62115FF /* CredentialQuotaParser.swift */; };
 		3272FCCB32B4B5746EB0BBD9 /* PageMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E49CCC5C4148225908A3BE /* PageMessage.swift */; };
@@ -61,6 +62,7 @@
 		7F561732C11EED25E8C070AC /* ProxyNodeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyNodeTests.swift; sourceTree = "<group>"; };
 		89BCE86FA76E55E93F00CDC3 /* ManagementModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagementModels.swift; sourceTree = "<group>"; };
 		9FDC3DFF443444D37918E7E0 /* ClientConfigurationExamplesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientConfigurationExamplesView.swift; sourceTree = "<group>"; };
+		B2156E9A1639269C7C8B6624 /* TokenUsagePriceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenUsagePriceView.swift; sourceTree = "<group>"; };
 		BA25A684932CC2F9A360E510 /* ManagementAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagementAPIClient.swift; sourceTree = "<group>"; };
 		C419627B2CAA75F270DB7E1F /* AuthFilesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFilesView.swift; sourceTree = "<group>"; };
 		C775CB97AEE62928D81164B4 /* CLIProxyGUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CLIProxyGUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -148,6 +150,7 @@
 				5816AFFF81D3C136998E1446 /* ConfigEditorView.swift */,
 				387400CC073D8064FC44AD92 /* LogsView.swift */,
 				44E49CCC5C4148225908A3BE /* PageMessage.swift */,
+				B2156E9A1639269C7C8B6624 /* TokenUsagePriceView.swift */,
 				75E6BBAEAE1D1CF738C649F9 /* TokenUsageView.swift */,
 			);
 			path = Management;
@@ -290,6 +293,7 @@
 				3272FCCB32B4B5746EB0BBD9 /* PageMessage.swift in Sources */,
 				FFE9929ECC3943526D339E28 /* ProxyNode.swift in Sources */,
 				E6C77059B675B6F9D9B376D6 /* TokenUsageModels.swift in Sources */,
+				180C32930B37ABBBBC5AF264 /* TokenUsagePriceView.swift in Sources */,
 				846CE6BF9A2A2D416CECF118 /* TokenUsageView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

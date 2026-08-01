@@ -10,6 +10,7 @@
 - API Keys 页面新增 Claude Code、Codex、模型查询与 API 测试示例，支持按 Key 生成并一键复制。
 - 概览页面展示 `/v1/models` 返回的具体模型，并按 GPT、Claude、Kimi 等提供方分组。
 - 客户端配置示例的 API Key 选择器增加序号，便于区分多个脱敏 Key。
+- Token 用量页面新增模型价格管理，可编辑 Input、Output、缓存价格，并从 Models.dev 同步当前模型价格。
 
 ## 0.6.2 - 2026-07-29
 

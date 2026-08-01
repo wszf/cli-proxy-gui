@@ -371,6 +371,48 @@ final class ProxyNodeTests: XCTestCase {
         XCTAssertEqual(snapshot.series.first?.totalLatencyNS, 3_000_000_000)
     }
 
+    func testDecodesTokenUsagePriceBook() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let book = try decoder.decode(TokenUsagePriceBook.self, from: Data("""
+        {
+          "schema_version": 1,
+          "revision": 3,
+          "prices": {
+            "claude-sonnet-4-6": {
+              "input": 3,
+              "output": 15,
+              "cache_read": 0.3,
+              "cache_creation": 3.75,
+              "context_tiers": [{
+                "threshold": 200000,
+                "input": 6,
+                "output": 22.5,
+                "cache_read": 0.6,
+                "cache_creation": 4.5
+              }],
+              "source": "models.dev",
+              "catalog_provider": "anthropic",
+              "catalog_model": "claude-sonnet-4-6"
+            }
+          },
+          "sync_settings": {
+            "provider_priority": ["openai", "anthropic"],
+            "ignored_suffixes": ["-preview"],
+            "mappings": []
+          }
+        }
+        """.utf8))
+
+        let price = try XCTUnwrap(book.prices["claude-sonnet-4-6"])
+        XCTAssertEqual(book.revision, 3)
+        XCTAssertEqual(price.input, 3)
+        XCTAssertEqual(price.cacheCreation, 3.75)
+        XCTAssertEqual(price.contextTiers.first?.threshold, 200_000)
+        XCTAssertEqual(price.source, "models.dev")
+        XCTAssertEqual(book.syncSettings.providerPriority, ["openai", "anthropic"])
+    }
+
     func testAggregatesUsageByModel() {
         let first = usageGroup(model: "gpt-5", provider: "openai", requests: 2, tokens: 100)
         let second = usageGroup(model: "gpt-5", provider: "azure", requests: 1, tokens: 50)
