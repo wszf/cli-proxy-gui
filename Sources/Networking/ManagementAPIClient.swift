@@ -452,6 +452,78 @@ struct ManagementAPIClient: Sendable {
         return try usageDecoder.decode(TokenUsagePriceBook.self, from: result.data)
     }
 
+    /// Performs the Models.dev fetch on the Mac and persists the merged price
+    /// book through the protected management endpoint. This is used as a
+    /// fallback when the VPS cannot reach Models.dev itself.
+    func syncTokenUsagePricesFromClient(
+        models: [String],
+        existing: TokenUsagePriceBook,
+        syncSettings: PriceSyncSettings? = nil,
+        node: ProxyNode,
+        managementKey: String
+    ) async throws -> ModelsDevClientSyncResult {
+        let settings = syncSettings ?? existing.syncSettings
+        let catalog = try await fetchModelsDevCatalog()
+        let updatedAt = ISO8601DateFormatter().string(from: Date())
+        let match = ModelsDevPriceMatcher.match(
+            catalog: catalog,
+            models: models,
+            settings: settings,
+            updatedAt: updatedAt
+        )
+
+        var prices = existing.prices
+        var created = 0
+        var updated = 0
+        var skippedManual = 0
+        for (model, price) in match.prices {
+            if let current = prices[model], current.source == "manual" {
+                skippedManual += 1
+                continue
+            }
+            if prices[model] == nil {
+                created += 1
+            } else {
+                updated += 1
+            }
+            prices[model] = price
+        }
+
+        let saved = try await saveTokenUsagePrices(
+            prices: prices,
+            syncSettings: settings,
+            node: node,
+            managementKey: managementKey
+        )
+
+        let localSyncMetadata = PriceSyncMetadata(
+            source: "models.dev",
+            completedAt: updatedAt,
+            observed: match.observed,
+            matched: match.matched,
+            created: created,
+            updated: updated,
+            skippedManual: skippedManual,
+            unmatched: match.unmatched
+        )
+        let localPriceBook = TokenUsagePriceBook(
+            schemaVersion: saved.schemaVersion,
+            revision: saved.revision,
+            prices: saved.prices,
+            syncSettings: saved.syncSettings,
+            lastSync: localSyncMetadata
+        )
+        return ModelsDevClientSyncResult(
+            priceBook: localPriceBook,
+            observed: match.observed,
+            matched: match.matched,
+            unmatched: match.unmatched,
+            created: created,
+            updated: updated,
+            skippedManual: skippedManual
+        )
+    }
+
     func fetchTokenUsageRequests(
         range: UsageRange,
         node: ProxyNode,
@@ -481,6 +553,36 @@ struct ManagementAPIClient: Sendable {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
         return encoder
+    }
+
+    private func fetchModelsDevCatalog() async throws -> [String: ModelsDevCatalogProvider] {
+        guard let url = URL(string: "https://models.dev/api.json") else {
+            throw APIError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("CLIProxyGUI", forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.httpStatus(http.statusCode, "Models.dev 返回 HTTP \(http.statusCode)")
+        }
+        guard data.count <= 16 * 1024 * 1024 else {
+            throw APIError.invalidResponse
+        }
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        do {
+            return try decoder.decode([String: ModelsDevCatalogProvider].self, from: data)
+        } catch {
+            throw APIError.httpStatus(502, "Models.dev 返回的数据无法解析")
+        }
     }
 
     private func rootURL(for node: ProxyNode) throws -> URL {

@@ -456,6 +456,59 @@ final class ProxyNodeTests: XCTestCase {
         XCTAssertEqual(book.lastSync?.matched, 7)
     }
 
+    func testMatchesModelsDevPricesWithProviderPriorityAndContextTier() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let catalog = try decoder.decode([String: ModelsDevCatalogProvider].self, from: Data("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-5": {
+                "id": "gpt-5",
+                "cost": {
+                  "input": 1,
+                  "output": 5,
+                  "cache_read": 0.1,
+                  "cache_write": 2,
+                  "tiers": [{
+                    "input": 2,
+                    "output": 8,
+                    "cache_read": 0.2,
+                    "cache_write": 3,
+                    "tier": {"type": "context", "size": 200000}
+                  }]
+                }
+              }
+            }
+          },
+          "other": {
+            "id": "other",
+            "models": {
+              "vendor/gpt-5": {
+                "id": "vendor/gpt-5",
+                "cost": {"input": 9, "output": 9}
+              }
+            }
+          }
+        }
+        """.utf8))
+
+        let result = ModelsDevPriceMatcher.match(
+            catalog: catalog,
+            models: ["gpt-5-high", "gpt-5"],
+            settings: PriceSyncSettings(),
+            updatedAt: "2026-08-02T00:00:00Z"
+        )
+
+        XCTAssertEqual(result.observed, 2)
+        XCTAssertEqual(result.matched, 2)
+        XCTAssertEqual(result.unmatched, 0)
+        XCTAssertEqual(result.prices["gpt-5-high"]?.input, 1)
+        XCTAssertEqual(result.prices["gpt-5-high"]?.catalogProvider, "openai")
+        XCTAssertEqual(result.prices["gpt-5-high"]?.contextTiers.first?.threshold, 200_000)
+    }
+
     func testAggregatesUsageByModel() {
         let first = usageGroup(model: "gpt-5", provider: "openai", requests: 2, tokens: 100)
         let second = usageGroup(model: "gpt-5", provider: "azure", requests: 1, tokens: 50)

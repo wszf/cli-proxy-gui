@@ -76,7 +76,9 @@ struct TokenUsagePriceView: View {
                 )
             }
             .disabled(isLoading || isSaving || isSyncing || modelNames.isEmpty || managementKey.isEmpty)
-            .help(modelNames.isEmpty ? "当前没有可同步的 CLIProxyAPI 模型" : "只同步当前节点 /v1/models 返回的模型")
+            .help(modelNames.isEmpty
+                ? "当前没有可同步的 CLIProxyAPI 模型"
+                : "优先由 VPS 同步；服务器返回 502/504 时自动切换到客户端同步")
             Button("完成") { dismiss() }
                 .keyboardShortcut(.cancelAction)
         }
@@ -109,6 +111,9 @@ struct TokenUsagePriceView: View {
             Label("价格单位：USD / 1M Token", systemImage: "info.circle")
                 .font(.headline)
             Text("保存后，插件会使用当前价格簿重新估算历史请求费用。手工修改会标记为 manual，后续 Models.dev 同步不会覆盖；已有 Context Tier 会原样保留。")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Text("同步优先在 VPS 上执行；如果 VPS 无法访问 Models.dev，客户端会自动改用 Mac 获取目录，再通过 Management Key 保存结果。")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -231,7 +236,27 @@ struct TokenUsagePriceView: View {
                 message = .success("Models.dev 同步完成。")
             }
         } catch {
-            message = .error(priceErrorMessage(for: error))
+            guard shouldFallbackToClientSync(error), let existing = priceBook else {
+                message = .error(priceErrorMessage(for: error))
+                return
+            }
+            do {
+                let fallback = try await client.syncTokenUsagePricesFromClient(
+                    models: modelNames,
+                    existing: existing,
+                    syncSettings: existing.syncSettings,
+                    node: node,
+                    managementKey: managementKey
+                )
+                apply(fallback.priceBook)
+                message = .success(
+                    "VPS 无法访问 Models.dev，已改用客户端同步：匹配 (fallback.matched) 个，未匹配 (fallback.unmatched) 个。"
+                )
+            } catch {
+                message = .error(
+                    "服务器同步超时，客户端同步也失败：\(priceErrorMessage(for: error))"
+                )
+            }
         }
     }
 
@@ -323,6 +348,11 @@ struct TokenUsagePriceView: View {
             return "当前 cap-token-usage-tracker 不支持模型价格接口，请升级插件。"
         }
         return text
+    }
+
+    private func shouldFallbackToClientSync(_ error: Error) -> Bool {
+        guard case let APIError.httpStatus(code, _) = error else { return false }
+        return code == 502 || code == 504
     }
 }
 

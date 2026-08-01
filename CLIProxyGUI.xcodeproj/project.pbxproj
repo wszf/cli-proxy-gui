@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		05F8C001F2B0ADDA2230BD94 /* NodeDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A26F14BF4A5E04B71587ECE /* NodeDashboardView.swift */; };
+		08C7641FD7EFA6ADCE95B126 /* ModelsDevPriceCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8EB355CC4AE64E45F073381 /* ModelsDevPriceCatalog.swift */; };
 		180C32930B37ABBBBC5AF264 /* TokenUsagePriceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2156E9A1639269C7C8B6624 /* TokenUsagePriceView.swift */; };
 		1C5E9A4975FB141B7BAD98E8 /* ManagementAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA25A684932CC2F9A360E510 /* ManagementAPIClient.swift */; };
 		2F490796A26D507438787B1A /* CredentialQuotaParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECBF54FFD0E0BA87C62115FF /* CredentialQuotaParser.swift */; };
@@ -66,6 +67,7 @@
 		BA25A684932CC2F9A360E510 /* ManagementAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagementAPIClient.swift; sourceTree = "<group>"; };
 		C419627B2CAA75F270DB7E1F /* AuthFilesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFilesView.swift; sourceTree = "<group>"; };
 		C775CB97AEE62928D81164B4 /* CLIProxyGUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CLIProxyGUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D8EB355CC4AE64E45F073381 /* ModelsDevPriceCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsDevPriceCatalog.swift; sourceTree = "<group>"; };
 		E5E8CCA945E979F6663323FC /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		ECBF54FFD0E0BA87C62115FF /* CredentialQuotaParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialQuotaParser.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -111,6 +113,7 @@
 			children = (
 				ECBF54FFD0E0BA87C62115FF /* CredentialQuotaParser.swift */,
 				BA25A684932CC2F9A360E510 /* ManagementAPIClient.swift */,
+				D8EB355CC4AE64E45F073381 /* ModelsDevPriceCatalog.swift */,
 			);
 			path = Networking;
 			sourceTree = "<group>";
@@ -287,6 +290,7 @@
 				781419F94FD394199BFB5E77 /* LogsView.swift in Sources */,
 				1C5E9A4975FB141B7BAD98E8 /* ManagementAPIClient.swift in Sources */,
 				BAE0B2FBDEA9CCAA2056615F /* ManagementModels.swift in Sources */,
+				08C7641FD7EFA6ADCE95B126 /* ModelsDevPriceCatalog.swift in Sources */,
 				05F8C001F2B0ADDA2230BD94 /* NodeDashboardView.swift in Sources */,
 				60153A38B52F96342E6C5302 /* NodeEditorView.swift in Sources */,
 				5A51AEF269EAE957B0ED1AB7 /* NodeStore.swift in Sources */,
