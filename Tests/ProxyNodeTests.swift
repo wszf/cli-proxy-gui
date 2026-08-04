@@ -296,6 +296,28 @@ final class ProxyNodeTests: XCTestCase {
         XCTAssertEqual(kimiSummary.windows.first?.remainingPercent, 25)
     }
 
+    func testFormatsCredentialQuotaResetCountdown() {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+
+        XCTAssertEqual(
+            CredentialQuotaResetCountdown.text(until: now.addingTimeInterval(2 * 86_400 + 5 * 3_600), now: now),
+            "2d 后重置"
+        )
+        XCTAssertEqual(
+            CredentialQuotaResetCountdown.text(until: now.addingTimeInterval(25 * 3_600), now: now),
+            "1d 后重置"
+        )
+        XCTAssertEqual(
+            CredentialQuotaResetCountdown.text(until: now.addingTimeInterval(23 * 3_600), now: now),
+            "23h 后重置"
+        )
+        XCTAssertEqual(
+            CredentialQuotaResetCountdown.text(until: now.addingTimeInterval(59 * 60), now: now),
+            "59m 后重置"
+        )
+        XCTAssertEqual(CredentialQuotaResetCountdown.text(until: now, now: now), "已重置")
+    }
+
     func testExtractsPluginOverview() throws {
         let plugins = try JSONSerialization.jsonObject(with: Data("""
         {

@@ -556,9 +556,27 @@ private struct CredentialQuotaCard: View {
                         ProgressView(value: window.remainingPercent, total: 100)
                             .tint(color(for: window.remainingPercent))
                         if let resetsAt = window.resetsAt {
-                            Text("重置：\(resetsAt.formatted(date: .abbreviated, time: .shortened))")
+                            TimelineView(.periodic(from: .now, by: 60)) { context in
+                                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                    Text("重置：\(resetsAt.formatted(date: .abbreviated, time: .shortened))")
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.8)
+                                    Spacer(minLength: 4)
+                                    Text(CredentialQuotaResetCountdown.text(until: resetsAt, now: context.date))
+                                        .fontWeight(.semibold)
+                                        .monospacedDigit()
+                                        .foregroundStyle(countdownColor(until: resetsAt, now: context.date))
+                                        .padding(.horizontal, 7)
+                                        .padding(.vertical, 3)
+                                        .background(
+                                            countdownColor(until: resetsAt, now: context.date).opacity(0.12),
+                                            in: Capsule()
+                                        )
+                                        .fixedSize()
+                                }
                                 .font(.caption2)
-                                .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
@@ -579,6 +597,14 @@ private struct CredentialQuotaCard: View {
         if remaining <= 15 { return .red }
         if remaining <= 35 { return .orange }
         return .green
+    }
+
+    private func countdownColor(until resetDate: Date, now: Date) -> Color {
+        let remaining = resetDate.timeIntervalSince(now)
+        if remaining <= 0 { return .secondary }
+        if remaining < 3_600 { return .red }
+        if remaining < 86_400 { return .orange }
+        return .accentColor
     }
 }
 
