@@ -371,6 +371,61 @@ final class ProxyNodeTests: XCTestCase {
         XCTAssertEqual(snapshot.series.first?.totalLatencyNS, 3_000_000_000)
     }
 
+    func testDecodesTokenUsageCostSeries() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let costs = try decoder.decode(TokenUsageCosts.self, from: Data("""
+        {
+          "schema_version": 1,
+          "generated_at": "2026-08-04T06:47:12Z",
+          "range": "24h",
+          "currency": "USD",
+          "estimate_basis": "current_price_book",
+          "price_book_revision": 2,
+          "summary": {
+            "requests": 2,
+            "priced_requests": 2,
+            "unpriced_requests": 0,
+            "input_usd": 1.25,
+            "output_usd": 2.5,
+            "cache_read_usd": 0.5,
+            "cache_creation_usd": 0,
+            "total_usd": 4.25
+          },
+          "models": [{
+            "provider": "claude",
+            "model": "kimi-k3",
+            "requests": 2,
+            "priced_requests": 2,
+            "unpriced_requests": 0,
+            "input_usd": 1.25,
+            "output_usd": 2.5,
+            "cache_read_usd": 0.5,
+            "cache_creation_usd": 0,
+            "total_usd": 4.25
+          }],
+          "series": [{
+            "hour": "2026-08-04T06:00:00Z",
+            "provider": "claude",
+            "model": "kimi-k3",
+            "requests": 2,
+            "priced_requests": 2,
+            "unpriced_requests": 0,
+            "input_usd": 1.25,
+            "output_usd": 2.5,
+            "cache_read_usd": 0.5,
+            "cache_creation_usd": 0,
+            "total_usd": 4.25
+          }]
+        }
+        """.utf8))
+
+        XCTAssertEqual(costs.priceBookRevision, 2)
+        XCTAssertEqual(costs.summary.totalUSD, 4.25)
+        XCTAssertEqual(costs.models.first?.model, "kimi-k3")
+        XCTAssertEqual(costs.series.first?.totalUSD, 4.25)
+    }
+
     func testDecodesTokenUsagePriceBook() throws {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase

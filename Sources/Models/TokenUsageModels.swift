@@ -174,8 +174,102 @@ struct UsageCostAmounts: Codable, Equatable, Sendable {
 }
 
 struct TokenUsageCosts: Codable, Equatable, Sendable {
+    let schemaVersion: UInt32
+    let generatedAt: String
+    let range: String
     let currency: String
+    let estimateBasis: String
+    let priceBookRevision: UInt64
     let summary: UsageCostAmounts
+    let models: [TokenUsageCostModel]
+    let series: [TokenUsageCostSeriesPoint]
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, generatedAt, range, currency, estimateBasis
+        case priceBookRevision, summary, models, series
+    }
+
+    init(
+        schemaVersion: UInt32 = 1,
+        generatedAt: String = "",
+        range: String = "",
+        currency: String = "USD",
+        estimateBasis: String = "",
+        priceBookRevision: UInt64 = 0,
+        summary: UsageCostAmounts,
+        models: [TokenUsageCostModel] = [],
+        series: [TokenUsageCostSeriesPoint] = []
+    ) {
+        self.schemaVersion = schemaVersion
+        self.generatedAt = generatedAt
+        self.range = range
+        self.currency = currency
+        self.estimateBasis = estimateBasis
+        self.priceBookRevision = priceBookRevision
+        self.summary = summary
+        self.models = models
+        self.series = series
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decodeIfPresent(UInt32.self, forKey: .schemaVersion) ?? 1
+        generatedAt = try container.decodeIfPresent(String.self, forKey: .generatedAt) ?? ""
+        range = try container.decodeIfPresent(String.self, forKey: .range) ?? ""
+        currency = try container.decodeIfPresent(String.self, forKey: .currency) ?? "USD"
+        estimateBasis = try container.decodeIfPresent(String.self, forKey: .estimateBasis) ?? ""
+        priceBookRevision = try container.decodeIfPresent(UInt64.self, forKey: .priceBookRevision) ?? 0
+        summary = try container.decode(UsageCostAmounts.self, forKey: .summary)
+        models = try container.decodeIfPresent([TokenUsageCostModel].self, forKey: .models) ?? []
+        series = try container.decodeIfPresent([TokenUsageCostSeriesPoint].self, forKey: .series) ?? []
+    }
+}
+
+struct TokenUsageCostModel: Codable, Equatable, Identifiable, Sendable {
+    var id: String { "\(provider)::\(model)" }
+    let provider: String
+    let model: String
+    let requests: UInt64
+    let pricedRequests: UInt64
+    let unpricedRequests: UInt64
+    let inputUSD: Double
+    let outputUSD: Double
+    let cacheReadUSD: Double
+    let cacheCreationUSD: Double
+    let totalUSD: Double
+
+    private enum CodingKeys: String, CodingKey {
+        case provider, model, requests, pricedRequests, unpricedRequests
+        case inputUSD = "inputUsd"
+        case outputUSD = "outputUsd"
+        case cacheReadUSD = "cacheReadUsd"
+        case cacheCreationUSD = "cacheCreationUsd"
+        case totalUSD = "totalUsd"
+    }
+}
+
+struct TokenUsageCostSeriesPoint: Codable, Equatable, Identifiable, Sendable {
+    var id: String { "\(hour)::\(provider)::\(model)" }
+    let hour: String
+    let provider: String
+    let model: String
+    let requests: UInt64
+    let pricedRequests: UInt64
+    let unpricedRequests: UInt64
+    let inputUSD: Double
+    let outputUSD: Double
+    let cacheReadUSD: Double
+    let cacheCreationUSD: Double
+    let totalUSD: Double
+
+    private enum CodingKeys: String, CodingKey {
+        case hour, provider, model, requests, pricedRequests, unpricedRequests
+        case inputUSD = "inputUsd"
+        case outputUSD = "outputUsd"
+        case cacheReadUSD = "cacheReadUsd"
+        case cacheCreationUSD = "cacheCreationUsd"
+        case totalUSD = "totalUsd"
+    }
 }
 
 struct ContextPriceTier: Codable, Equatable, Sendable {
@@ -413,14 +507,42 @@ struct ModelUsageRow: Identifiable, Equatable, Sendable {
     let provider: String
     let requests: UInt64
     let failedRequests: UInt64
+    let inputTokens: UInt64
+    let outputTokens: UInt64
+    let cacheReadTokens: UInt64
     let totalTokens: UInt64
+    let totalLatencyNS: UInt64
+    let latencySamples: UInt64
+    let totalTTFTNS: UInt64
+    let ttftSamples: UInt64
+
+    var averageLatencyNS: UInt64 {
+        let samples = latencySamples == 0 ? requests : latencySamples
+        return samples == 0 ? 0 : totalLatencyNS / samples
+    }
+
+    var averageTTFTNS: UInt64 {
+        let samples = ttftSamples == 0 ? requests : ttftSamples
+        return samples == 0 ? 0 : totalTTFTNS / samples
+    }
+
+    var averageTokens: Double {
+        requests == 0 ? 0 : Double(totalTokens) / Double(requests)
+    }
 
     static func aggregate(_ groups: [UsageGroup]) -> [ModelUsageRow] {
         struct Accumulator {
             var providers = Set<String>()
             var requests: UInt64 = 0
             var failed: UInt64 = 0
+            var input: UInt64 = 0
+            var output: UInt64 = 0
+            var cacheRead: UInt64 = 0
             var tokens: UInt64 = 0
+            var latencyNS: UInt64 = 0
+            var latencySamples: UInt64 = 0
+            var ttftNS: UInt64 = 0
+            var ttftSamples: UInt64 = 0
         }
         var values: [String: Accumulator] = [:]
         for group in groups {
@@ -429,7 +551,14 @@ struct ModelUsageRow: Identifiable, Equatable, Sendable {
             if !group.provider.isEmpty { value.providers.insert(group.provider) }
             value.requests &+= group.requests
             value.failed &+= group.failedRequests
+            value.input &+= group.inputTokens
+            value.output &+= group.outputTokens
+            value.cacheRead &+= group.cacheReadTokens
             value.tokens &+= group.totalTokens
+            value.latencyNS &+= group.totalLatencyNS
+            value.latencySamples &+= group.latencySamples
+            value.ttftNS &+= group.totalTTFTNS
+            value.ttftSamples &+= group.ttftSamples
             values[name] = value
         }
         return values.map { model, value in
@@ -438,7 +567,14 @@ struct ModelUsageRow: Identifiable, Equatable, Sendable {
                 provider: value.providers.sorted().joined(separator: ", "),
                 requests: value.requests,
                 failedRequests: value.failed,
-                totalTokens: value.tokens
+                inputTokens: value.input,
+                outputTokens: value.output,
+                cacheReadTokens: value.cacheRead,
+                totalTokens: value.tokens,
+                totalLatencyNS: value.latencyNS,
+                latencySamples: value.latencySamples,
+                totalTTFTNS: value.ttftNS,
+                ttftSamples: value.ttftSamples
             )
         }
         .sorted {
