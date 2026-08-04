@@ -64,13 +64,13 @@ enum CredentialQuotaResetCountdown {
         let remaining = resetDate.timeIntervalSince(now)
         guard remaining > 0 else { return "已重置" }
         if remaining >= 86_400 {
-            return "\(max(1, Int(remaining / 86_400)))d 后重置"
+            return "\(max(1, Int(remaining / 86_400)))d 重置"
         }
         if remaining >= 3_600 {
-            return "\(max(1, Int(remaining / 3_600)))h 后重置"
+            return "\(max(1, Int(remaining / 3_600)))h 重置"
         }
         if remaining >= 60 {
-            return "\(max(1, Int(remaining / 60)))m 后重置"
+            return "\(max(1, Int(remaining / 60)))m 重置"
         }
         return "即将重置"
     }

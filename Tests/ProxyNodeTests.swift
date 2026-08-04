@@ -301,19 +301,19 @@ final class ProxyNodeTests: XCTestCase {
 
         XCTAssertEqual(
             CredentialQuotaResetCountdown.text(until: now.addingTimeInterval(2 * 86_400 + 5 * 3_600), now: now),
-            "2d 后重置"
+            "2d 重置"
         )
         XCTAssertEqual(
             CredentialQuotaResetCountdown.text(until: now.addingTimeInterval(25 * 3_600), now: now),
-            "1d 后重置"
+            "1d 重置"
         )
         XCTAssertEqual(
             CredentialQuotaResetCountdown.text(until: now.addingTimeInterval(23 * 3_600), now: now),
-            "23h 后重置"
+            "23h 重置"
         )
         XCTAssertEqual(
             CredentialQuotaResetCountdown.text(until: now.addingTimeInterval(59 * 60), now: now),
-            "59m 后重置"
+            "59m 重置"
         )
         XCTAssertEqual(CredentialQuotaResetCountdown.text(until: now, now: now), "已重置")
     }
