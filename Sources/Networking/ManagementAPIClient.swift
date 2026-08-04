@@ -398,6 +398,23 @@ struct ManagementAPIClient: Sendable {
         return try usageDecoder.decode(TokenUsageCosts.self, from: result.data)
     }
 
+    func fetchTokenUsageExchangeRate(node: ProxyNode) async throws -> TokenUsageExchangeRate {
+        let result = try await request(
+            path: "v0/resource/plugins/cap-token-usage-tracker/exchange-rate",
+            baseURL: try rootURL(for: node),
+            key: "",
+            timeout: 12
+        )
+        let rate = try usageDecoder.decode(TokenUsageExchangeRate.self, from: result.data)
+        guard rate.base.uppercased() == "USD",
+              rate.quote.uppercased() == "CNY",
+              rate.rate.isFinite,
+              rate.rate > 0 else {
+            throw APIError.invalidResponse
+        }
+        return rate
+    }
+
     func fetchTokenUsagePrices(node: ProxyNode) async throws -> TokenUsagePriceBook {
         let result = try await request(
             path: "v0/resource/plugins/cap-token-usage-tracker/prices",

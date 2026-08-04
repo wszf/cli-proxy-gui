@@ -24,6 +24,10 @@ struct TokenUsageView: View {
     @State private var showOutput = true
     @State private var showCacheRead = true
     @State private var showCacheHitRate = true
+    @State private var tokenDisplayMode: TokenDisplayMode = .full
+    @State private var displayCurrency: UsageDisplayCurrency = .usd
+    @State private var exchangeRate: TokenUsageExchangeRate?
+    @State private var isLoadingExchangeRate = false
 
     private let client = ManagementAPIClient()
     private let requestPageSize = 50
@@ -95,7 +99,11 @@ struct TokenUsageView: View {
                 MessageBar(message: message)
             }
         }
-        .task(id: node.id) { await load() }
+        .task(id: node.id) {
+            displayCurrency = .usd
+            exchangeRate = nil
+            await load()
+        }
         .sheet(isPresented: $isShowingPriceBook, onDismiss: {
             Task { await load() }
         }) {
@@ -141,33 +149,55 @@ struct TokenUsageView: View {
     }
 
     private func metrics(_ stats: TokenUsageSnapshot) -> some View {
-        LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 170), spacing: 12)],
+        let requestCount = stats.summary.requests
+        let successfulRequests = requestCount >= stats.summary.failedRequests
+            ? requestCount - stats.summary.failedRequests
+            : 0
+        let successRate = requestCount == 0
+            ? 0
+            : Double(successfulRequests) / Double(requestCount) * 100
+        let topModel = modelRows.sorted {
+            if $0.requests == $1.requests {
+                return $0.totalTokens > $1.totalTokens
+            }
+            return $0.requests > $1.requests
+        }.first
+
+        return LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 215), spacing: 12)],
             spacing: 12
         ) {
             UsageMetricCard(
-                title: "请求",
-                value: stats.summary.requests.formatted(),
-                subtitle: "\(stats.summary.failedRequests.formatted()) 次失败",
-                symbol: "arrow.up.arrow.down"
+                title: "总消耗 Token",
+                value: formatTokenTotal(stats.summary.totalTokens),
+                subtitle: "输入 \(stats.summary.inputTokens.formatted()) · 输出 \(stats.summary.outputTokens.formatted()) · 缓存读取 \(stats.summary.cacheReadTokens.formatted())",
+                accessoryTitle: tokenDisplayMode.title,
+                accessoryHelp: "切换为 \(tokenDisplayMode.next.title) 单位"
+            ) {
+                tokenDisplayMode = tokenDisplayMode.next
+            }
+            UsageMetricCard(
+                title: "预估总费用",
+                value: displayedTotalCost,
+                subtitle: costCoverageText,
+                accessoryTitle: displayCurrency.rawValue,
+                accessoryHelp: displayCurrency == .usd ? "切换为人民币" : "切换为美元",
+                accessoryDisabled: costs == nil || isLoadingExchangeRate
+            ) {
+                Task { await toggleCurrency() }
+            }
+            UsageMetricCard(
+                title: "总请求次数",
+                value: requestCount.formatted(),
+                subtitle: String(format: "%.1f%%", successRate)
             )
             UsageMetricCard(
-                title: "总 Tokens",
-                value: stats.summary.totalTokens.formatted(.number.notation(.compactName)),
-                subtitle: "输入 \(stats.summary.inputTokens.formatted(.number.notation(.compactName))) · 输出 \(stats.summary.outputTokens.formatted(.number.notation(.compactName)))",
-                symbol: "sum"
-            )
-            UsageMetricCard(
-                title: "缓存读取",
-                value: stats.summary.cacheReadTokens.formatted(.number.notation(.compactName)),
-                subtitle: "缓存创建 \(stats.summary.cacheCreationTokens.formatted(.number.notation(.compactName)))",
-                symbol: "memorychip"
-            )
-            UsageMetricCard(
-                title: "预估费用",
-                value: costs.map { String(format: "$%.4f", $0.summary.totalUSD) } ?? "—",
-                subtitle: costs.map { "\($0.summary.pricedRequests)/\($0.summary.requests) 次已定价" } ?? "价格数据不可用",
-                symbol: "dollarsign.circle"
+                title: "最常用模型",
+                value: topModel?.model ?? "—",
+                subtitle: topModel.map {
+                    "\($0.requests.formatted()) 次调用 · \($0.totalTokens.formatted()) Tokens"
+                } ?? "按调用次数统计",
+                badge: topModel.map { modelBadge($0.model) } ?? "AI"
             )
         }
     }
@@ -1015,6 +1045,71 @@ struct TokenUsageView: View {
         }?.model
     }
 
+    private var displayedTotalCost: String {
+        guard let costs else { return "—" }
+        return currency(costs.summary.totalUSD, code: costs.currency)
+    }
+
+    private var costCoverageText: String {
+        guard let costs else { return "等待精确费用数据" }
+        var value = "价格覆盖 \(costs.summary.pricedRequests.formatted()) / \(costs.summary.requests.formatted()) · 未定价 \(costs.summary.unpricedRequests.formatted())"
+        if displayCurrency == .cny, let exchangeRate {
+            value += String(format: " · 1 USD = %.4f CNY", exchangeRate.rate)
+            if exchangeRate.stale {
+                value += " · 缓存汇率"
+            }
+        }
+        return value
+    }
+
+    private func formatTokenTotal(_ value: UInt64) -> String {
+        switch tokenDisplayMode {
+        case .full:
+            return value.formatted()
+        case .thousands:
+            return scaledNumber(Double(value) / 1_000) + "k"
+        case .millions:
+            return scaledNumber(Double(value) / 1_000_000) + "m"
+        }
+    }
+
+    private func scaledNumber(_ value: Double) -> String {
+        value.formatted(
+            .number
+                .grouping(.automatic)
+                .precision(.fractionLength(0...2))
+        )
+    }
+
+    private func modelBadge(_ model: String) -> String {
+        let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "AI" }
+        return String(trimmed.prefix(2)).uppercased()
+    }
+
+    @MainActor
+    private func toggleCurrency() async {
+        if displayCurrency == .cny {
+            displayCurrency = .usd
+            return
+        }
+        isLoadingExchangeRate = true
+        defer { isLoadingExchangeRate = false }
+        do {
+            let loadedRate: TokenUsageExchangeRate
+            if let exchangeRate {
+                loadedRate = exchangeRate
+            } else {
+                loadedRate = try await client.fetchTokenUsageExchangeRate(node: node)
+            }
+            exchangeRate = loadedRate
+            displayCurrency = .cny
+        } catch {
+            displayCurrency = .usd
+            message = .error("人民币汇率不可用：\(ManagementAPIClient.friendlyMessage(for: error))")
+        }
+    }
+
     private func compactNumber(_ value: Double) -> String {
         let absolute = abs(value)
         if absolute >= 1_000_000_000 {
@@ -1030,8 +1125,24 @@ struct TokenUsageView: View {
     }
 
     private func currency(_ value: Double, code: String) -> String {
-        let symbol = code.uppercased() == "USD" ? "$" : "\(code) "
-        return "\(symbol)\(String(format: "%.2f", value))"
+        let sourceCode = code.uppercased()
+        let convertedValue: Double
+        let shownCode: String
+        if sourceCode == "USD", displayCurrency == .cny, let exchangeRate {
+            convertedValue = value * exchangeRate.rate
+            shownCode = "CNY"
+        } else {
+            convertedValue = value
+            shownCode = sourceCode
+        }
+        let formatter = NumberFormatter()
+        formatter.locale = .current
+        formatter.numberStyle = .currency
+        formatter.currencyCode = shownCode
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = convertedValue < 1 ? 4 : 2
+        return formatter.string(from: NSNumber(value: convertedValue))
+            ?? "\(shownCode) \(String(format: "%.2f", convertedValue))"
     }
 
     private func chartTimeLabel(_ date: Date) -> String {
@@ -1302,32 +1413,110 @@ private struct EfficiencyRow: Identifiable {
     }
 }
 
+private enum TokenDisplayMode {
+    case full
+    case thousands
+    case millions
+
+    var title: String {
+        switch self {
+        case .full: "完整"
+        case .thousands: "k"
+        case .millions: "m"
+        }
+    }
+
+    var next: TokenDisplayMode {
+        switch self {
+        case .full: .thousands
+        case .thousands: .millions
+        case .millions: .full
+        }
+    }
+}
+
+private enum UsageDisplayCurrency: String {
+    case usd = "USD"
+    case cny = "CNY"
+}
+
 private struct UsageMetricCard: View {
     let title: String
     let value: String
     let subtitle: String
-    let symbol: String
+    let badge: String?
+    let accessoryTitle: String?
+    let accessoryHelp: String
+    let accessoryDisabled: Bool
+    let action: (() -> Void)?
+
+    init(
+        title: String,
+        value: String,
+        subtitle: String,
+        badge: String? = nil,
+        accessoryTitle: String? = nil,
+        accessoryHelp: String = "",
+        accessoryDisabled: Bool = false,
+        action: (() -> Void)? = nil
+    ) {
+        self.title = title
+        self.value = value
+        self.subtitle = subtitle
+        self.badge = badge
+        self.accessoryTitle = accessoryTitle
+        self.accessoryHelp = accessoryHelp
+        self.accessoryDisabled = accessoryDisabled
+        self.action = action
+    }
 
     var body: some View {
         GroupBox {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.indigo.opacity(0.8))
+                        .frame(width: 7, height: 7)
                     Text(title)
-                        .font(.caption)
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.secondary)
-                    Text(value)
-                        .font(.system(size: 24, weight: .semibold, design: .rounded))
-                    Text(subtitle)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    if let accessoryTitle, let action {
+                        Button(action: action) {
+                            Text(accessoryTitle)
+                                .font(.caption.weight(.semibold))
+                                .monospacedDigit()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(accessoryDisabled)
+                        .help(accessoryHelp)
+                    }
                 }
-                Spacer()
-                Image(systemName: symbol)
-                    .font(.title2)
-                    .foregroundStyle(.tint)
+
+                HStack(spacing: 10) {
+                    if let badge {
+                        Text(badge)
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(Color.indigo)
+                            .frame(width: 36, height: 36)
+                            .background(Color.indigo.opacity(0.1), in: RoundedRectangle(cornerRadius: 9))
+                    }
+                    Text(value)
+                        .font(.system(size: 28, weight: .semibold, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.65)
+                        .help(value)
+                }
+
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(6)
+            .padding(8)
+            .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
         }
     }
 }

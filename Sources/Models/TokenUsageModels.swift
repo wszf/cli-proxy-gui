@@ -225,6 +225,17 @@ struct TokenUsageCosts: Codable, Equatable, Sendable {
     }
 }
 
+struct TokenUsageExchangeRate: Codable, Equatable, Sendable {
+    let schemaVersion: UInt32
+    let base: String
+    let quote: String
+    let rate: Double
+    let effectiveAt: String
+    let fetchedAt: String
+    let source: String
+    let stale: Bool
+}
+
 struct TokenUsageCostModel: Codable, Equatable, Identifiable, Sendable {
     var id: String { "\(provider)::\(model)" }
     let provider: String

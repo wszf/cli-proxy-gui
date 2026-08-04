@@ -426,6 +426,28 @@ final class ProxyNodeTests: XCTestCase {
         XCTAssertEqual(costs.series.first?.totalUSD, 4.25)
     }
 
+    func testDecodesTokenUsageExchangeRate() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let rate = try decoder.decode(TokenUsageExchangeRate.self, from: Data("""
+        {
+          "schema_version": 1,
+          "base": "USD",
+          "quote": "CNY",
+          "rate": 6.765857,
+          "effective_at": "2026-08-04T00:02:31Z",
+          "fetched_at": "2026-08-04T07:36:32Z",
+          "source": "open.er-api.com",
+          "stale": false
+        }
+        """.utf8))
+
+        XCTAssertEqual(rate.base, "USD")
+        XCTAssertEqual(rate.quote, "CNY")
+        XCTAssertEqual(rate.rate, 6.765857, accuracy: 0.000001)
+        XCTAssertFalse(rate.stale)
+    }
+
     func testDecodesTokenUsagePriceBook() throws {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
