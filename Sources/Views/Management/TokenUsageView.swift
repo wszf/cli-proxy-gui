@@ -280,9 +280,6 @@ struct TokenUsageView: View {
                         if let selected = selectedTrendPoint(in: points) {
                             RuleMark(x: .value("时间", selected.date))
                                 .foregroundStyle(.secondary.opacity(0.6))
-                                .annotation(position: .top, alignment: .leading, spacing: 8) {
-                                    trendTooltip(selected)
-                                }
                         }
                     }
                     .chartYScale(domain: 0...tokenMaximum)
@@ -346,6 +343,20 @@ struct TokenUsageView: View {
                         }
                     }
                     .frame(height: 260)
+                    .overlay {
+                        if let selected = selectedTrendPoint(in: points) {
+                            let selectedIndex = points.firstIndex(where: { $0.id == selected.id }) ?? 0
+                            let alignment: Alignment = selectedIndex < points.count / 2
+                                ? .topTrailing
+                                : .topLeading
+                            trendTooltip(selected)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
+                                .padding(.horizontal, 42)
+                                .padding(.top, 8)
+                                .allowsHitTesting(false)
+                        }
+                    }
+                    .clipped()
                 }
             }
             .padding(8)
@@ -523,9 +534,6 @@ struct TokenUsageView: View {
                         if let selected = selectedCostTrendPoint(in: points) {
                             RuleMark(x: .value("时间", selected.date))
                                 .foregroundStyle(.secondary.opacity(0.6))
-                                .annotation(position: .top, alignment: .leading, spacing: 8) {
-                                    costTooltip(selected, currency: costs.currency)
-                                }
                         }
                     }
                     .chartYScale(domain: 0...maximum)
@@ -580,6 +588,20 @@ struct TokenUsageView: View {
                         }
                     }
                     .frame(height: 260)
+                    .overlay {
+                        if let selected = selectedCostTrendPoint(in: points) {
+                            let selectedIndex = points.firstIndex(where: { $0.id == selected.id }) ?? 0
+                            let alignment: Alignment = selectedIndex < points.count / 2
+                                ? .topTrailing
+                                : .topLeading
+                            costTooltip(selected, currency: costs.currency)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
+                                .padding(.horizontal, 42)
+                                .padding(.top, 8)
+                                .allowsHitTesting(false)
+                        }
+                    }
+                    .clipped()
                 }
             }
             .padding(8)
