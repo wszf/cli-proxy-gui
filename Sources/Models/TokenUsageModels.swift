@@ -468,6 +468,7 @@ struct UsageRequestItem: Codable, Equatable, Identifiable, Sendable {
     let alias: String
     let source: String
     let serviceTier: String
+    let reasoningEffort: String?
     let failed: Bool
     let failureStatus: Int
     let requests: UInt64
@@ -480,23 +481,81 @@ struct UsageRequestItem: Codable, Equatable, Identifiable, Sendable {
     let result: String
     let latencyNS: UInt64
     let ttftNS: UInt64
+    let generationNS: UInt64?
     let tps: Double
+    let cacheHit: Bool?
+    let estimatedCost: UsageRequestEstimatedCost?
+
+    var effectiveGenerationNS: UInt64 {
+        generationNS ?? (latencyNS >= ttftNS ? latencyNS - ttftNS : latencyNS)
+    }
+
+    var effectiveCacheHit: Bool {
+        cacheHit ?? (cacheReadTokens > 0)
+    }
 
     private enum CodingKeys: String, CodingKey {
-        case sequence, time, provider, executorType, model, alias, source, serviceTier
+        case sequence, time, provider, executorType, model, alias, source, serviceTier, reasoningEffort
         case failed, failureStatus, requests, inputTokens, outputTokens, reasoningTokens
         case cacheReadTokens, cacheCreationTokens, totalTokens, result
         case latencyNS = "latencyNs"
         case ttftNS = "ttftNs"
-        case tps
+        case generationNS = "generationNs"
+        case tps, cacheHit, estimatedCost
+    }
+}
+
+struct UsageRequestEstimatedCost: Codable, Equatable, Sendable {
+    let priced: Bool
+    let source: String?
+    let accountingMode: String?
+    let tierThreshold: UInt64?
+    let contextTokens: UInt64?
+    let billableInputTokens: UInt64?
+    let billedCacheReadTokens: UInt64?
+    let inputUSD: Double
+    let outputUSD: Double
+    let cacheReadUSD: Double
+    let cacheCreationUSD: Double
+    let totalUSD: Double
+
+    private enum CodingKeys: String, CodingKey {
+        case priced, source, accountingMode, tierThreshold, contextTokens
+        case billableInputTokens, billedCacheReadTokens
+        case inputUSD = "inputUsd"
+        case outputUSD = "outputUsd"
+        case cacheReadUSD = "cacheReadUsd"
+        case cacheCreationUSD = "cacheCreationUsd"
+        case totalUSD = "totalUsd"
     }
 }
 
 struct UsageRequestPage: Codable, Equatable, Sendable {
+    let generatedAt: String?
+    let range: String?
+    let priceBookRevision: UInt64?
     let total: Int
     let offset: Int
     let limit: Int
     let items: [UsageRequestItem]
+
+    init(
+        total: Int,
+        offset: Int,
+        limit: Int,
+        items: [UsageRequestItem],
+        generatedAt: String? = nil,
+        range: String? = nil,
+        priceBookRevision: UInt64? = nil
+    ) {
+        self.generatedAt = generatedAt
+        self.range = range
+        self.priceBookRevision = priceBookRevision
+        self.total = total
+        self.offset = offset
+        self.limit = limit
+        self.items = items
+    }
 
     var hasPreviousPage: Bool {
         offset > 0

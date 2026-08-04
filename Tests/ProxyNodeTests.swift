@@ -371,6 +371,68 @@ final class ProxyNodeTests: XCTestCase {
         XCTAssertEqual(snapshot.series.first?.totalLatencyNS, 3_000_000_000)
     }
 
+    func testDecodesCompleteTokenUsageRequestDetails() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let page = try decoder.decode(UsageRequestPage.self, from: Data("""
+        {
+          "generated_at": "2026-08-04T08:00:00Z",
+          "range": "24h",
+          "price_book_revision": 2,
+          "total": 1,
+          "offset": 0,
+          "limit": 100,
+          "items": [{
+            "sequence": 9,
+            "time": "2026-08-03T18:48:07.84755961Z",
+            "provider": "kimi",
+            "executor_type": "openai",
+            "model": "kimi-k3",
+            "alias": "",
+            "source": "codex",
+            "service_tier": "default",
+            "reasoning_effort": "max",
+            "failed": false,
+            "failure_status": 0,
+            "requests": 1,
+            "input_tokens": 347,
+            "output_tokens": 73,
+            "reasoning_tokens": 0,
+            "cache_read_tokens": 589056,
+            "cache_creation_tokens": 0,
+            "total_tokens": 589476,
+            "result": "成功",
+            "latency_ns": 12930000000,
+            "ttft_ns": 710000000,
+            "generation_ns": 12220000000,
+            "tps": 5.97,
+            "cache_hit": true,
+            "estimated_cost": {
+              "priced": true,
+              "source": "models.dev",
+              "accounting_mode": "input_includes_cache",
+              "context_tokens": 589403,
+              "billable_input_tokens": 347,
+              "billed_cache_read_tokens": 589056,
+              "input_usd": 0.0001,
+              "output_usd": 0.0003,
+              "cache_read_usd": 0.295,
+              "cache_creation_usd": 0,
+              "total_usd": 0.2954
+            }
+          }]
+        }
+        """.utf8))
+
+        let item = try XCTUnwrap(page.items.first)
+        XCTAssertEqual(page.priceBookRevision, 2)
+        XCTAssertEqual(item.reasoningEffort, "max")
+        XCTAssertEqual(item.effectiveGenerationNS, 12_220_000_000)
+        XCTAssertTrue(item.effectiveCacheHit)
+        XCTAssertEqual(item.estimatedCost?.source, "models.dev")
+        XCTAssertEqual(item.estimatedCost?.totalUSD, 0.2954)
+    }
+
     func testDecodesTokenUsageCostSeries() throws {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase

@@ -14,6 +14,10 @@ struct TokenUsageView: View {
     @State private var message: PageMessage?
     @State private var dimensionQuery = ""
     @State private var requestOffset = 0
+    @State private var requestPageSize = 100
+    @State private var visibleRequestColumns = Set(RequestDetailColumn.allCases)
+    @State private var requestSortColumn: RequestDetailColumn = .time
+    @State private var requestSortAscending = false
     @State private var isShowingPriceBook = false
     @State private var trendZoomLevel = 0
     @State private var selectedTrendID: Date?
@@ -31,8 +35,6 @@ struct TokenUsageView: View {
     @State private var isLoadingExchangeRate = false
 
     private let client = ManagementAPIClient()
-    private let requestPageSize = 50
-
     private var modelRows: [ModelUsageRow] {
         ModelUsageRow.aggregate(stats?.groups ?? [])
     }
@@ -1308,51 +1310,73 @@ struct TokenUsageView: View {
     }
 
     private var recentRequests: some View {
-        GroupBox("最近请求") {
+        GroupBox {
             if let requests, !requests.items.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
-                    Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 9) {
-                        GridRow {
-                            Text("时间").fontWeight(.semibold)
-                            Text("模型").fontWeight(.semibold)
-                            Text("结果").fontWeight(.semibold)
-                            Text("Tokens").fontWeight(.semibold)
-                            Text("延迟").fontWeight(.semibold)
-                        }
-                        Divider()
-                        ForEach(requests.items) { item in
-                            GridRow {
-                                Text(shortTime(item.time))
-                                    .foregroundStyle(.secondary)
-                                Text(item.model).lineLimit(1)
-                                Text(item.result)
-                                    .foregroundStyle(item.failed ? .red : .green)
-                                Text(item.totalTokens.formatted())
-                                Text(duration(item.latencyNS))
+                    HStack(spacing: 10) {
+                        Text("逐请求记录，支持当前页排序与列显示设置，默认最新优先")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("\(requests.total.formatted()) 条请求 · 价格簿 #\((requests.priceBookRevision ?? 0).formatted())")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Picker("每页行数", selection: $requestPageSize) {
+                            ForEach([25, 50, 100, 200, 500], id: \.self) { size in
+                                Text("\(size)").tag(size)
                             }
                         }
+                        .labelsHidden()
+                        .frame(width: 82)
+                        .onChange(of: requestPageSize) { _, _ in
+                            requestOffset = 0
+                            Task { await changeRequestPage(by: 0) }
+                        }
+                        requestColumnMenu
+                        Button("上一页") {
+                            Task { await changeRequestPage(by: -1) }
+                        }
+                        .disabled(!requests.hasPreviousPage || isLoadingRequests)
+                        if let range = requests.displayedRange {
+                            Text("\(range.lowerBound)–\(range.upperBound) / \(requests.total)")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                        Button("下一页") {
+                            Task { await changeRequestPage(by: 1) }
+                        }
+                        .disabled(!requests.hasNextPage || isLoadingRequests)
+                    }
+
+                    ScrollView(.horizontal) {
+                        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 9) {
+                            GridRow {
+                                ForEach(orderedRequestColumns) { column in
+                                    requestColumnHeader(column)
+                                }
+                            }
+                            Divider()
+                            ForEach(sortedRequestItems(requests.items)) { item in
+                                GridRow {
+                                    ForEach(orderedRequestColumns) { column in
+                                        requestCell(item, column: column)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.vertical, 2)
                     }
 
                     Divider()
                     HStack {
-                        if let range = requests.displayedRange {
-                            Text("第 \(range.lowerBound)–\(range.upperBound) 条，共 \(requests.total) 条")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
                         Spacer()
                         if isLoadingRequests {
                             ProgressView()
                                 .controlSize(.small)
                         }
-                        Button("上一页", systemImage: "chevron.left") {
-                            Task { await changeRequestPage(by: -1) }
-                        }
-                        .disabled(!requests.hasPreviousPage || isLoadingRequests)
-                        Button("下一页", systemImage: "chevron.right") {
-                            Task { await changeRequestPage(by: 1) }
-                        }
-                        .disabled(!requests.hasNextPage || isLoadingRequests)
+                        Text("费用按当前价格簿逐请求估算")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1362,7 +1386,199 @@ struct TokenUsageView: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 80)
             }
+        } label: {
+            Label("请求明细", systemImage: "list.bullet.rectangle")
         }
+    }
+
+    private var orderedRequestColumns: [RequestDetailColumn] {
+        RequestDetailColumn.allCases.filter(visibleRequestColumns.contains)
+    }
+
+    private var requestColumnMenu: some View {
+        Menu("列设置", systemImage: "rectangle.3.group") {
+            Button("全部显示") {
+                visibleRequestColumns = Set(RequestDetailColumn.allCases)
+            }
+            Divider()
+            ForEach(RequestDetailColumn.allCases) { column in
+                Toggle(
+                    column.title,
+                    isOn: Binding(
+                        get: { visibleRequestColumns.contains(column) },
+                        set: { visible in
+                            if visible {
+                                visibleRequestColumns.insert(column)
+                            } else if visibleRequestColumns.count > 1 {
+                                visibleRequestColumns.remove(column)
+                            }
+                        }
+                    )
+                )
+            }
+        }
+    }
+
+    private func requestColumnHeader(_ column: RequestDetailColumn) -> some View {
+        Button {
+            if requestSortColumn == column {
+                requestSortAscending.toggle()
+            } else {
+                requestSortColumn = column
+                requestSortAscending = column != .time
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(column.title)
+                if requestSortColumn == column {
+                    Image(systemName: requestSortAscending ? "arrow.up" : "arrow.down")
+                        .font(.caption2)
+                }
+            }
+            .fontWeight(.semibold)
+            .frame(width: column.width, alignment: column.alignment)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func requestCell(_ item: UsageRequestItem, column: RequestDetailColumn) -> some View {
+        requestCellContent(item, column: column)
+            .frame(width: column.width, alignment: column.alignment)
+            .lineLimit(1)
+    }
+
+    @ViewBuilder
+    private func requestCellContent(_ item: UsageRequestItem, column: RequestDetailColumn) -> some View {
+        switch column {
+        case .time:
+            Text(shortTime(item.time)).foregroundStyle(.secondary)
+        case .model:
+            Text(item.model.isEmpty ? "未标记模型" : item.model).help(item.model)
+        case .source:
+            Text(item.source.isEmpty ? "—" : item.source)
+        case .serviceTier:
+            Text(item.serviceTier.isEmpty ? "—" : item.serviceTier)
+        case .result:
+            Text(item.result)
+                .foregroundStyle(item.failed ? Color.red : Color.green)
+                .fontWeight(.medium)
+        case .ttft:
+            Text(duration(item.ttftNS)).fontDesign(.monospaced)
+        case .generation:
+            Text(duration(item.effectiveGenerationNS)).fontDesign(.monospaced)
+        case .tps:
+            Text(String(format: "%.2f", item.tps)).fontDesign(.monospaced)
+        case .reasoningEffort:
+            Text(nonBlank(item.reasoningEffort))
+        case .input:
+            requestNumber(item.inputTokens)
+        case .output:
+            requestNumber(item.outputTokens)
+        case .reasoning:
+            requestNumber(item.reasoningTokens)
+        case .cacheRead:
+            requestNumber(item.cacheReadTokens)
+        case .cacheCreation:
+            requestNumber(item.cacheCreationTokens)
+        case .totalTokens:
+            requestNumber(item.totalTokens)
+        case .cacheHit:
+            Text(item.effectiveCacheHit ? "命中" : "未命中")
+                .foregroundStyle(item.effectiveCacheHit ? Color.green : Color.secondary)
+        case .estimatedCost:
+            if let cost = item.estimatedCost, cost.priced {
+                Text(currency(cost.totalUSD, code: "USD"))
+                    .fontDesign(.monospaced)
+                    .help(requestCostBreakdown(cost))
+            } else {
+                Text("未定价").foregroundStyle(.secondary)
+            }
+        case .priceSource:
+            Text(item.estimatedCost?.priced == true ? nonBlank(item.estimatedCost?.source) : "—")
+        }
+    }
+
+    private func requestNumber(_ value: UInt64) -> some View {
+        Text(value.formatted()).fontDesign(.monospaced)
+    }
+
+    private func requestCostBreakdown(_ cost: UsageRequestEstimatedCost) -> String {
+        [
+            "输入 \(currency(cost.inputUSD, code: "USD"))",
+            "输出 \(currency(cost.outputUSD, code: "USD"))",
+            "缓存读取 \(currency(cost.cacheReadUSD, code: "USD"))",
+            "缓存创建 \(currency(cost.cacheCreationUSD, code: "USD"))"
+        ].joined(separator: " · ")
+    }
+
+    private func sortedRequestItems(_ items: [UsageRequestItem]) -> [UsageRequestItem] {
+        items.sorted { lhs, rhs in
+            let comparison = compareRequestItems(lhs, rhs, column: requestSortColumn)
+            if comparison == .orderedSame {
+                return requestSortAscending ? lhs.sequence < rhs.sequence : lhs.sequence > rhs.sequence
+            }
+            return requestSortAscending ? comparison == .orderedAscending : comparison == .orderedDescending
+        }
+    }
+
+    private func compareRequestItems(
+        _ lhs: UsageRequestItem,
+        _ rhs: UsageRequestItem,
+        column: RequestDetailColumn
+    ) -> ComparisonResult {
+        switch column {
+        case .time:
+            return compareValues(requestDate(lhs.time) ?? .distantPast, requestDate(rhs.time) ?? .distantPast)
+        case .model:
+            return compareValues(lhs.model, rhs.model)
+        case .source:
+            return compareValues(lhs.source, rhs.source)
+        case .serviceTier:
+            return compareValues(lhs.serviceTier, rhs.serviceTier)
+        case .result:
+            return compareValues(lhs.result, rhs.result)
+        case .ttft:
+            return compareValues(lhs.ttftNS, rhs.ttftNS)
+        case .generation:
+            return compareValues(lhs.effectiveGenerationNS, rhs.effectiveGenerationNS)
+        case .tps:
+            return compareValues(lhs.tps, rhs.tps)
+        case .reasoningEffort:
+            return compareValues(lhs.reasoningEffort ?? "", rhs.reasoningEffort ?? "")
+        case .input:
+            return compareValues(lhs.inputTokens, rhs.inputTokens)
+        case .output:
+            return compareValues(lhs.outputTokens, rhs.outputTokens)
+        case .reasoning:
+            return compareValues(lhs.reasoningTokens, rhs.reasoningTokens)
+        case .cacheRead:
+            return compareValues(lhs.cacheReadTokens, rhs.cacheReadTokens)
+        case .cacheCreation:
+            return compareValues(lhs.cacheCreationTokens, rhs.cacheCreationTokens)
+        case .totalTokens:
+            return compareValues(lhs.totalTokens, rhs.totalTokens)
+        case .cacheHit:
+            return compareValues(lhs.effectiveCacheHit ? 1 : 0, rhs.effectiveCacheHit ? 1 : 0)
+        case .estimatedCost:
+            return compareValues(
+                lhs.estimatedCost?.priced == true ? lhs.estimatedCost?.totalUSD ?? 0 : -1,
+                rhs.estimatedCost?.priced == true ? rhs.estimatedCost?.totalUSD ?? 0 : -1
+            )
+        case .priceSource:
+            return compareValues(lhs.estimatedCost?.source ?? "", rhs.estimatedCost?.source ?? "")
+        }
+    }
+
+    private func compareValues<Value: Comparable>(_ lhs: Value, _ rhs: Value) -> ComparisonResult {
+        if lhs < rhs { return .orderedAscending }
+        if lhs > rhs { return .orderedDescending }
+        return .orderedSame
+    }
+
+    private func nonBlank(_ value: String?) -> String {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? "—" : trimmed
     }
 
     @MainActor
@@ -1428,8 +1644,18 @@ struct TokenUsageView: View {
     }
 
     private func shortTime(_ rawValue: String) -> String {
-        guard let date = ISO8601DateFormatter().date(from: rawValue) else { return rawValue }
-        return date.formatted(date: .omitted, time: .standard)
+        guard let date = requestDate(rawValue) else { return rawValue }
+        return date.formatted(date: .numeric, time: .standard)
+    }
+
+    private func requestDate(_ rawValue: String) -> Date? {
+        if let date = try? Date(
+            rawValue,
+            strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+        ) {
+            return date
+        }
+        return try? Date(rawValue, strategy: Date.ISO8601FormatStyle())
     }
 
     private func duration(_ nanoseconds: UInt64) -> String {
@@ -1437,6 +1663,77 @@ struct TokenUsageView: View {
         return milliseconds >= 1000
             ? String(format: "%.2f s", milliseconds / 1000)
             : String(format: "%.0f ms", milliseconds)
+    }
+}
+
+private enum RequestDetailColumn: String, CaseIterable, Identifiable {
+    case time
+    case model
+    case source
+    case serviceTier
+    case result
+    case ttft
+    case generation
+    case tps
+    case reasoningEffort
+    case input
+    case output
+    case reasoning
+    case cacheRead
+    case cacheCreation
+    case totalTokens
+    case cacheHit
+    case estimatedCost
+    case priceSource
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .time: "时间"
+        case .model: "模型名称"
+        case .source: "来源"
+        case .serviceTier: "Tier"
+        case .result: "结果"
+        case .ttft: "首字延迟"
+        case .generation: "生成时间"
+        case .tps: "TPS"
+        case .reasoningEffort: "思考强度"
+        case .input: "输入"
+        case .output: "输出"
+        case .reasoning: "思考"
+        case .cacheRead: "缓存读取"
+        case .cacheCreation: "缓存创建"
+        case .totalTokens: "总 Token 数"
+        case .cacheHit: "缓存命中"
+        case .estimatedCost: "预估费用"
+        case .priceSource: "价格来源"
+        }
+    }
+
+    var width: CGFloat {
+        switch self {
+        case .time: 170
+        case .model: 180
+        case .source: 130
+        case .serviceTier, .reasoningEffort: 100
+        case .result: 125
+        case .ttft, .generation: 95
+        case .tps, .cacheHit: 80
+        case .input, .output, .reasoning, .cacheRead, .cacheCreation, .totalTokens: 110
+        case .estimatedCost: 115
+        case .priceSource: 105
+        }
+    }
+
+    var alignment: Alignment {
+        switch self {
+        case .ttft, .generation, .tps, .input, .output, .reasoning,
+             .cacheRead, .cacheCreation, .totalTokens, .estimatedCost:
+            .trailing
+        default:
+            .leading
+        }
     }
 }
 
