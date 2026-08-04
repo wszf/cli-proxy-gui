@@ -57,6 +57,7 @@ struct NodeSnapshot: Equatable, Sendable {
     var providerCount: Int?
     var apiKeyCount: Int?
     var availableModelCount: Int?
+    var availableModelGroups: [AvailableModelGroup] = []
     var routingStrategy: String?
     var plugins: PluginOverview?
     var dailyUsage: DailyUsageOverview?

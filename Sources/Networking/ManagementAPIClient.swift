@@ -43,11 +43,15 @@ struct ManagementAPIClient: Sendable {
                 keys: ["api-keys", "api_keys"],
                 in: configJSON
             )
-            let modelCount: Int?
+            let fetchedModelGroups: [AvailableModelGroup]?
             if let apiKey {
-                modelCount = try? await fetchAvailableModelCount(node: node, apiKey: apiKey)
+                fetchedModelGroups = try? await fetchAvailableModels(node: node, apiKey: apiKey)
             } else {
-                modelCount = nil
+                fetchedModelGroups = nil
+            }
+            let modelGroups = fetchedModelGroups ?? []
+            let modelCount = fetchedModelGroups.map { groups in
+                groups.reduce(0) { $0 + $1.models.count }
             }
 
             let latestResult = await latestResponse
@@ -76,6 +80,7 @@ struct ManagementAPIClient: Sendable {
                 providerCount: JSONMetrics.providerCount(in: configJSON),
                 apiKeyCount: JSONMetrics.arrayCount(keys: ["api-keys", "api_keys"], in: configJSON),
                 availableModelCount: modelCount,
+                availableModelGroups: modelGroups,
                 routingStrategy: JSONMetrics.string(keys: ["routing-strategy", "routing_strategy"], in: configJSON),
                 plugins: pluginJSON.flatMap(JSONMetrics.pluginOverview),
                 dailyUsage: usageResult.map {
@@ -240,19 +245,18 @@ struct ManagementAPIClient: Sendable {
         _ = try await request(path: "logs", node: node, key: managementKey, method: "DELETE")
     }
 
-    private func fetchAvailableModelCount(node: ProxyNode, apiKey: String) async throws -> Int {
+    private func fetchAvailableModels(
+        node: ProxyNode,
+        apiKey: String
+    ) async throws -> [AvailableModelGroup] {
         let result = try await request(
             path: "v1/models",
             baseURL: try rootURL(for: node),
             key: apiKey,
             timeout: 6
         )
-        guard let object = try JSONSerialization.jsonObject(with: result.data) as? [String: Any],
-              let models = object["data"] as? [[String: Any]]
-        else {
-            throw APIError.invalidResponse
-        }
-        return Set(models.compactMap { Self.text($0["id"]) }).count
+        let object = try JSONSerialization.jsonObject(with: result.data)
+        return JSONMetrics.availableModelGroups(in: object)
     }
 
     func fetchCredentialQuotas(
@@ -394,6 +398,149 @@ struct ManagementAPIClient: Sendable {
         return try usageDecoder.decode(TokenUsageCosts.self, from: result.data)
     }
 
+    func fetchTokenUsageExchangeRate(node: ProxyNode) async throws -> TokenUsageExchangeRate {
+        let result = try await request(
+            path: "v0/resource/plugins/cap-token-usage-tracker/exchange-rate",
+            baseURL: try rootURL(for: node),
+            key: "",
+            timeout: 12
+        )
+        let rate = try usageDecoder.decode(TokenUsageExchangeRate.self, from: result.data)
+        guard rate.base.uppercased() == "USD",
+              rate.quote.uppercased() == "CNY",
+              rate.rate.isFinite,
+              rate.rate > 0 else {
+            throw APIError.invalidResponse
+        }
+        return rate
+    }
+
+    func fetchTokenUsagePrices(node: ProxyNode) async throws -> TokenUsagePriceBook {
+        let result = try await request(
+            path: "v0/resource/plugins/cap-token-usage-tracker/prices",
+            baseURL: try rootURL(for: node),
+            key: ""
+        )
+        return try usageDecoder.decode(TokenUsagePriceBook.self, from: result.data)
+    }
+
+    func saveTokenUsagePrices(
+        prices: [String: ModelPrice],
+        syncSettings: PriceSyncSettings,
+        node: ProxyNode,
+        managementKey: String
+    ) async throws -> TokenUsagePriceBook {
+        let body = try usageEncoder.encode(
+            TokenUsagePriceSavePayload(prices: prices, syncSettings: syncSettings)
+        )
+        let result = try await request(
+            path: "plugins/cap-token-usage-tracker/prices",
+            node: node,
+            key: managementKey,
+            method: "PUT",
+            body: body,
+            contentType: "application/json"
+        )
+        return try usageDecoder.decode(TokenUsagePriceBook.self, from: result.data)
+    }
+
+    func syncTokenUsagePrices(
+        models: [String],
+        syncSettings: PriceSyncSettings? = nil,
+        node: ProxyNode,
+        managementKey: String
+    ) async throws -> TokenUsagePriceBook {
+        let body = try usageEncoder.encode(
+            TokenUsagePriceSyncPayload(
+                source: "models.dev",
+                models: Array(Set(models.filter { !$0.isEmpty })).sorted(),
+                syncSettings: syncSettings
+            )
+        )
+        let result = try await request(
+            path: "plugins/cap-token-usage-tracker/prices/sync",
+            node: node,
+            key: managementKey,
+            method: "POST",
+            body: body,
+            contentType: "application/json",
+            timeout: 30
+        )
+        return try usageDecoder.decode(TokenUsagePriceBook.self, from: result.data)
+    }
+
+    /// Performs the Models.dev fetch on the Mac and persists the merged price
+    /// book through the protected management endpoint. This is used as a
+    /// fallback when the VPS cannot reach Models.dev itself.
+    func syncTokenUsagePricesFromClient(
+        models: [String],
+        existing: TokenUsagePriceBook,
+        syncSettings: PriceSyncSettings? = nil,
+        node: ProxyNode,
+        managementKey: String
+    ) async throws -> ModelsDevClientSyncResult {
+        let settings = syncSettings ?? existing.syncSettings
+        let catalog = try await fetchModelsDevCatalog()
+        let updatedAt = ISO8601DateFormatter().string(from: Date())
+        let match = ModelsDevPriceMatcher.match(
+            catalog: catalog,
+            models: models,
+            settings: settings,
+            updatedAt: updatedAt
+        )
+
+        var prices = existing.prices
+        var created = 0
+        var updated = 0
+        var skippedManual = 0
+        for (model, price) in match.prices {
+            if let current = prices[model], current.source == "manual" {
+                skippedManual += 1
+                continue
+            }
+            if prices[model] == nil {
+                created += 1
+            } else {
+                updated += 1
+            }
+            prices[model] = price
+        }
+
+        let saved = try await saveTokenUsagePrices(
+            prices: prices,
+            syncSettings: settings,
+            node: node,
+            managementKey: managementKey
+        )
+
+        let localSyncMetadata = PriceSyncMetadata(
+            source: "models.dev",
+            completedAt: updatedAt,
+            observed: match.observed,
+            matched: match.matched,
+            created: created,
+            updated: updated,
+            skippedManual: skippedManual,
+            unmatched: match.unmatched
+        )
+        let localPriceBook = TokenUsagePriceBook(
+            schemaVersion: saved.schemaVersion,
+            revision: saved.revision,
+            prices: saved.prices,
+            syncSettings: saved.syncSettings,
+            lastSync: localSyncMetadata
+        )
+        return ModelsDevClientSyncResult(
+            priceBook: localPriceBook,
+            observed: match.observed,
+            matched: match.matched,
+            unmatched: match.unmatched,
+            created: created,
+            updated: updated,
+            skippedManual: skippedManual
+        )
+    }
+
     func fetchTokenUsageRequests(
         range: UsageRange,
         node: ProxyNode,
@@ -417,6 +564,42 @@ struct ManagementAPIClient: Sendable {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return decoder
+    }
+
+    private var usageEncoder: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        return encoder
+    }
+
+    private func fetchModelsDevCatalog() async throws -> [String: ModelsDevCatalogProvider] {
+        guard let url = URL(string: "https://models.dev/api.json") else {
+            throw APIError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("CLIProxyGUI", forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.httpStatus(http.statusCode, "Models.dev 返回 HTTP \(http.statusCode)")
+        }
+        guard data.count <= 16 * 1024 * 1024 else {
+            throw APIError.invalidResponse
+        }
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        do {
+            return try decoder.decode([String: ModelsDevCatalogProvider].self, from: data)
+        } catch {
+            throw APIError.httpStatus(502, "Models.dev 返回的数据无法解析")
+        }
     }
 
     private func rootURL(for node: ProxyNode) throws -> URL {
@@ -557,6 +740,17 @@ struct ManagementAPIClient: Sendable {
         let seconds = timestamp > 10_000_000_000 ? Double(timestamp) / 1000 : Double(timestamp)
         return Date(timeIntervalSince1970: seconds)
     }
+}
+
+private struct TokenUsagePriceSavePayload: Encodable {
+    let prices: [String: ModelPrice]
+    let syncSettings: PriceSyncSettings
+}
+
+private struct TokenUsagePriceSyncPayload: Encodable {
+    let source: String
+    let models: [String]
+    let syncSettings: PriceSyncSettings?
 }
 
 enum APIError: LocalizedError {
@@ -700,6 +894,98 @@ enum JSONMetrics {
             active: active.count,
             tokenTrackerActive: tracker
         )
+    }
+
+    static func availableModelGroups(in object: Any) -> [AvailableModelGroup] {
+        let rawModels: [Any]
+        if let models = object as? [Any] {
+            rawModels = models
+        } else if let dictionary = object as? [String: Any],
+                  let models = (dictionary["data"] ?? dictionary["models"]) as? [Any]
+        {
+            rawModels = models
+        } else {
+            return []
+        }
+
+        var seenNames = Set<String>()
+        let models = rawModels.compactMap { value -> AvailableModelItem? in
+            let name: String?
+            let alias: String?
+            if let value = value as? String {
+                name = text(value)
+                alias = nil
+            } else if let dictionary = value as? [String: Any] {
+                name = text(
+                    dictionary["id"]
+                        ?? dictionary["name"]
+                        ?? dictionary["model"]
+                        ?? dictionary["value"]
+                )
+                let candidate = text(
+                    dictionary["alias"]
+                        ?? dictionary["display_name"]
+                        ?? dictionary["displayName"]
+                )
+                alias = candidate == name ? nil : candidate
+            } else {
+                return nil
+            }
+            guard let name else { return nil }
+            let deduplicationKey = name.lowercased()
+            guard seenNames.insert(deduplicationKey).inserted else { return nil }
+            return AvailableModelItem(name: name, alias: alias)
+        }
+
+        struct Definition {
+            let id: String
+            let label: String
+            let patterns: [String]
+        }
+        let definitions = [
+            Definition(id: "gpt", label: "GPT", patterns: ["gpt", "chatgpt"]),
+            Definition(id: "claude", label: "Claude", patterns: ["claude"]),
+            Definition(id: "gemini", label: "Gemini", patterns: ["gemini", "gai"]),
+            Definition(id: "kimi", label: "Kimi", patterns: ["kimi"]),
+            Definition(id: "qwen", label: "Qwen", patterns: ["qwen"]),
+            Definition(id: "glm", label: "GLM", patterns: ["glm", "chatglm"]),
+            Definition(id: "grok", label: "Grok", patterns: ["grok"]),
+            Definition(id: "deepseek", label: "DeepSeek", patterns: ["deepseek"]),
+            Definition(id: "minimax", label: "MiniMax", patterns: ["minimax", "abab"])
+        ]
+        var grouped = Dictionary(uniqueKeysWithValues: definitions.map { ($0.id, [AvailableModelItem]()) })
+        var other: [AvailableModelItem] = []
+
+        for model in models {
+            let searchable = "\(model.name) \(model.alias ?? "")".lowercased()
+            let definition = definitions.first { definition in
+                definition.patterns.contains { searchable.contains($0) }
+                    || (definition.id == "gpt"
+                        && searchable.range(of: #"\bo[0-9]+\.?"#, options: .regularExpression) != nil)
+            }
+            if let definition {
+                grouped[definition.id, default: []].append(model)
+            } else {
+                other.append(model)
+            }
+        }
+
+        var result = definitions.compactMap { definition -> AvailableModelGroup? in
+            guard let items = grouped[definition.id], !items.isEmpty else { return nil }
+            return AvailableModelGroup(
+                id: definition.id,
+                label: definition.label,
+                models: items.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            )
+        }
+        if !other.isEmpty {
+            result.append(AvailableModelGroup(
+                id: "other",
+                label: "其他",
+                models: other.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            ))
+        }
+        return result
     }
 
     static func arrayCount(keys: [String], in object: Any) -> Int? {

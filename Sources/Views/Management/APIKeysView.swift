@@ -9,6 +9,7 @@ struct APIKeysView: View {
     @State private var isLoading = false
     @State private var isSaving = false
     @State private var revealKeys = false
+    @State private var showConfigurationExamples = false
     @State private var showSaveConfirmation = false
     @State private var message: PageMessage?
 
@@ -60,6 +61,9 @@ struct APIKeysView: View {
             }
         }
         .task(id: node.id) { await load() }
+        .sheet(isPresented: $showConfigurationExamples) {
+            ClientConfigurationExamplesView(node: node, apiKeys: cleanKeys)
+        }
         .confirmationDialog(
             "替换节点上的全部 API Keys？",
             isPresented: $showSaveConfirmation,
@@ -82,6 +86,12 @@ struct APIKeysView: View {
                     .foregroundStyle(.orange)
             }
             Spacer()
+            Button {
+                showConfigurationExamples = true
+            } label: {
+                Label("配置示例", systemImage: "doc.on.doc")
+            }
+            .help("Claude Code 与 Codex 客户端配置示例")
             Toggle("显示", isOn: $revealKeys)
                 .toggleStyle(.button)
                 .help(revealKeys ? "隐藏 Keys" : "显示 Keys")
@@ -145,4 +155,3 @@ struct APIKeysView: View {
         }
     }
 }
-

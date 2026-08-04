@@ -27,6 +27,18 @@ struct CredentialHealth: Equatable, Sendable {
     let providers: [CredentialProviderSummary]
 }
 
+struct AvailableModelItem: Identifiable, Equatable, Sendable {
+    var id: String { name.lowercased() }
+    let name: String
+    let alias: String?
+}
+
+struct AvailableModelGroup: Identifiable, Equatable, Sendable {
+    let id: String
+    let label: String
+    let models: [AvailableModelItem]
+}
+
 struct CredentialQuotaSummary: Identifiable, Equatable, Sendable {
     let id: String
     let provider: String
@@ -45,6 +57,23 @@ struct CredentialQuotaWindow: Identifiable, Equatable, Sendable {
     let label: String
     let remainingPercent: Double
     let resetsAt: Date?
+}
+
+enum CredentialQuotaResetCountdown {
+    static func text(until resetDate: Date, now: Date = .now) -> String {
+        let remaining = resetDate.timeIntervalSince(now)
+        guard remaining > 0 else { return "已重置" }
+        if remaining >= 86_400 {
+            return "\(max(1, Int(remaining / 86_400)))d 重置"
+        }
+        if remaining >= 3_600 {
+            return "\(max(1, Int(remaining / 3_600)))h 重置"
+        }
+        if remaining >= 60 {
+            return "\(max(1, Int(remaining / 60)))m 重置"
+        }
+        return "即将重置"
+    }
 }
 
 enum CredentialQuotaLoadState: Equatable, Sendable {
