@@ -19,6 +19,7 @@ struct TokenUsageView: View {
     @State private var selectedTrendID: Date?
     @State private var selectedCostTrendID: Date?
     @State private var selectedModel: String?
+    @State private var hoveredModel: String?
     @State private var selectedEfficiencyModel: String?
     @State private var showInput = true
     @State private var showOutput = true
@@ -346,47 +347,48 @@ struct TokenUsageView: View {
                         if let plotAnchor = proxy.plotFrame {
                             GeometryReader { geometry in
                                 let plotFrame = geometry[plotAnchor]
-                                Rectangle()
-                                    .fill(.clear)
-                                    .contentShape(Rectangle())
-                                    .onContinuousHover { phase in
-                                        switch phase {
-                                        case .active(let location):
-                                            let relativeX = max(0, min(plotFrame.width, location.x - plotFrame.origin.x))
-                                            let ratio = plotFrame.width > 0 ? relativeX / plotFrame.width : 0
-                                            let index = min(points.count - 1, max(0, Int((ratio * Double(points.count - 1)).rounded())))
-                                            selectedTrendID = points[index].id
-                                        case .ended:
-                                            selectedTrendID = nil
-                                        }
-                                    }
-                                    .gesture(
-                                        DragGesture(minimumDistance: 0)
-                                            .onChanged { value in
-                                                let relativeX = max(0, min(plotFrame.width, value.location.x - plotFrame.origin.x))
+                                ZStack(alignment: .topLeading) {
+                                    Rectangle()
+                                        .fill(Color.black.opacity(0.001))
+                                        .contentShape(Rectangle())
+                                        .onContinuousHover { phase in
+                                            switch phase {
+                                            case .active(let location):
+                                                let relativeX = max(0, min(plotFrame.width, location.x - plotFrame.origin.x))
                                                 let ratio = plotFrame.width > 0 ? relativeX / plotFrame.width : 0
                                                 let index = min(points.count - 1, max(0, Int((ratio * Double(points.count - 1)).rounded())))
                                                 selectedTrendID = points[index].id
+                                            case .ended:
+                                                selectedTrendID = nil
                                             }
-                                    )
+                                        }
+                                        .gesture(
+                                            DragGesture(minimumDistance: 0)
+                                                .onChanged { value in
+                                                    let relativeX = max(0, min(plotFrame.width, value.location.x - plotFrame.origin.x))
+                                                    let ratio = plotFrame.width > 0 ? relativeX / plotFrame.width : 0
+                                                    let index = min(points.count - 1, max(0, Int((ratio * Double(points.count - 1)).rounded())))
+                                                    selectedTrendID = points[index].id
+                                                }
+                                        )
+                                    if let selected = selectedTrendPoint(in: points) {
+                                        let selectedIndex = points.firstIndex(where: { $0.id == selected.id }) ?? 0
+                                        let x = selectedIndex < points.count / 2
+                                            ? plotFrame.maxX - 115
+                                            : plotFrame.minX + 115
+                                        trendTooltip(selected)
+                                            .frame(width: 220)
+                                            .position(
+                                                x: max(plotFrame.minX + 110, min(plotFrame.maxX - 110, x)),
+                                                y: plotFrame.minY + 88
+                                            )
+                                            .allowsHitTesting(false)
+                                    }
+                                }
                             }
                         }
                     }
                     .frame(height: 260)
-                    .overlay {
-                        if let selected = selectedTrendPoint(in: points) {
-                            let selectedIndex = points.firstIndex(where: { $0.id == selected.id }) ?? 0
-                            let alignment: Alignment = selectedIndex < points.count / 2
-                                ? .topTrailing
-                                : .topLeading
-                            trendTooltip(selected)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
-                                .padding(.horizontal, 42)
-                                .padding(.top, 8)
-                                .allowsHitTesting(false)
-                        }
-                    }
-                    .clipped()
                 }
             }
             .padding(8)
@@ -399,6 +401,7 @@ struct TokenUsageView: View {
     private var modelUsage: some View {
         let rows = modelRows
         let total = rows.reduce(UInt64(0)) { $0 &+ $1.totalTokens }
+        let activeModel = hoveredModel ?? selectedModel
         return GroupBox {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline) {
@@ -419,51 +422,83 @@ struct TokenUsageView: View {
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, minHeight: 180)
                 } else {
-                    HStack(alignment: .top, spacing: 18) {
-                        ZStack {
-                            Chart(rows) { row in
-                                SectorMark(
-                                    angle: .value("Tokens", max(1, row.totalTokens)),
-                                    innerRadius: .ratio(0.62),
-                                    angularInset: 1.5
-                                )
-                                .foregroundStyle(by: .value("模型", row.model))
-                                .opacity(selectedModel == nil || selectedModel == row.model ? 1 : 0.3)
-                            }
-                            .chartLegend(.hidden)
-                            .chartForegroundStyleScale(
-                                domain: rows.map(\.model),
-                                range: rows.indices.map { modelColors[$0 % modelColors.count] }
-                            )
-                            VStack(spacing: 2) {
-                                Text(compactNumber(Double(total)))
-                                    .font(.system(size: 23, weight: .semibold, design: .rounded))
-                                Text("总 Tokens")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .frame(width: 190, height: 205)
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                                Button {
-                                    selectedModel = selectedModel == row.model ? nil : row.model
-                                } label: {
-                                    modelLegendRow(
-                                        row,
-                                        color: modelColors[index % modelColors.count],
-                                        total: total
+                    ZStack(alignment: .bottomTrailing) {
+                        HStack(alignment: .top, spacing: 18) {
+                            ZStack {
+                                Chart(rows) { row in
+                                    SectorMark(
+                                        angle: .value("Tokens", max(1, row.totalTokens)),
+                                        innerRadius: .ratio(0.62),
+                                        angularInset: 1.5
                                     )
+                                    .foregroundStyle(by: .value("模型", row.model))
+                                    .opacity(activeModel == nil || activeModel == row.model ? 1 : 0.3)
                                 }
-                                .buttonStyle(.plain)
-                                .help(row.model)
+                                .chartLegend(.hidden)
+                                .chartForegroundStyleScale(
+                                    domain: rows.map(\.model),
+                                    range: rows.indices.map { modelColors[$0 % modelColors.count] }
+                                )
+                                .chartOverlay { proxy in
+                                    if let plotAnchor = proxy.plotFrame {
+                                        GeometryReader { geometry in
+                                            let plotFrame = geometry[plotAnchor]
+                                            Rectangle()
+                                                .fill(Color.black.opacity(0.001))
+                                                .contentShape(Rectangle())
+                                                .onContinuousHover { phase in
+                                                    switch phase {
+                                                    case .active(let location):
+                                                        hoveredModel = modelAtDonutLocation(
+                                                            location,
+                                                            plotFrame: plotFrame,
+                                                            rows: rows
+                                                        )
+                                                    case .ended:
+                                                        hoveredModel = nil
+                                                    }
+                                                }
+                                        }
+                                    }
+                                }
+                                VStack(spacing: 2) {
+                                    Text(compactNumber(Double(total)))
+                                        .font(.system(size: 23, weight: .semibold, design: .rounded))
+                                    Text("总 Tokens")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .allowsHitTesting(false)
                             }
+                            .frame(width: 190, height: 205)
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                                    Button {
+                                        selectedModel = selectedModel == row.model ? nil : row.model
+                                    } label: {
+                                        modelLegendRow(
+                                            row,
+                                            color: modelColors[index % modelColors.count],
+                                            total: total
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help(row.model)
+                                    .onHover { hovering in
+                                        hoveredModel = hovering ? row.model : nil
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    if let selectedModel, let row = rows.first(where: { $0.model == selectedModel }) {
-                        modelTooltip(row, total: total)
+                        if let activeModel,
+                           let row = rows.first(where: { $0.model == activeModel }) {
+                            modelTooltip(row, total: total)
+                                .frame(width: 230)
+                                .padding(10)
+                                .allowsHitTesting(false)
+                        }
                     }
                 }
             }
@@ -591,47 +626,48 @@ struct TokenUsageView: View {
                         if let plotAnchor = proxy.plotFrame {
                             GeometryReader { geometry in
                                 let plotFrame = geometry[plotAnchor]
-                                Rectangle()
-                                    .fill(.clear)
-                                    .contentShape(Rectangle())
-                                    .onContinuousHover { phase in
-                                        switch phase {
-                                        case .active(let location):
-                                            let relativeX = max(0, min(plotFrame.width, location.x - plotFrame.origin.x))
-                                            let ratio = plotFrame.width > 0 ? relativeX / plotFrame.width : 0
-                                            let index = min(points.count - 1, max(0, Int((ratio * Double(points.count - 1)).rounded())))
-                                            selectedCostTrendID = points[index].id
-                                        case .ended:
-                                            selectedCostTrendID = nil
-                                        }
-                                    }
-                                    .gesture(
-                                        DragGesture(minimumDistance: 0)
-                                            .onChanged { value in
-                                                let relativeX = max(0, min(plotFrame.width, value.location.x - plotFrame.origin.x))
+                                ZStack(alignment: .topLeading) {
+                                    Rectangle()
+                                        .fill(Color.black.opacity(0.001))
+                                        .contentShape(Rectangle())
+                                        .onContinuousHover { phase in
+                                            switch phase {
+                                            case .active(let location):
+                                                let relativeX = max(0, min(plotFrame.width, location.x - plotFrame.origin.x))
                                                 let ratio = plotFrame.width > 0 ? relativeX / plotFrame.width : 0
                                                 let index = min(points.count - 1, max(0, Int((ratio * Double(points.count - 1)).rounded())))
                                                 selectedCostTrendID = points[index].id
+                                            case .ended:
+                                                selectedCostTrendID = nil
                                             }
-                                    )
+                                        }
+                                        .gesture(
+                                            DragGesture(minimumDistance: 0)
+                                                .onChanged { value in
+                                                    let relativeX = max(0, min(plotFrame.width, value.location.x - plotFrame.origin.x))
+                                                    let ratio = plotFrame.width > 0 ? relativeX / plotFrame.width : 0
+                                                    let index = min(points.count - 1, max(0, Int((ratio * Double(points.count - 1)).rounded())))
+                                                    selectedCostTrendID = points[index].id
+                                                }
+                                        )
+                                    if let selected = selectedCostTrendPoint(in: points) {
+                                        let selectedIndex = points.firstIndex(where: { $0.id == selected.id }) ?? 0
+                                        let x = selectedIndex < points.count / 2
+                                            ? plotFrame.maxX - 115
+                                            : plotFrame.minX + 115
+                                        costTooltip(selected, currency: costs.currency)
+                                            .frame(width: 220)
+                                            .position(
+                                                x: max(plotFrame.minX + 110, min(plotFrame.maxX - 110, x)),
+                                                y: plotFrame.minY + 82
+                                            )
+                                            .allowsHitTesting(false)
+                                    }
+                                }
                             }
                         }
                     }
                     .frame(height: 260)
-                    .overlay {
-                        if let selected = selectedCostTrendPoint(in: points) {
-                            let selectedIndex = points.firstIndex(where: { $0.id == selected.id }) ?? 0
-                            let alignment: Alignment = selectedIndex < points.count / 2
-                                ? .topTrailing
-                                : .topLeading
-                            costTooltip(selected, currency: costs.currency)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
-                                .padding(.horizontal, 42)
-                                .padding(.top, 8)
-                                .allowsHitTesting(false)
-                        }
-                    }
-                    .clipped()
                 }
             }
             .padding(8)
@@ -705,23 +741,38 @@ struct TokenUsageView: View {
                         if let plotAnchor = proxy.plotFrame {
                             GeometryReader { geometry in
                                 let plotFrame = geometry[plotAnchor]
-                                Rectangle()
-                                    .fill(.clear)
-                                    .contentShape(Rectangle())
-                                    .onContinuousHover { phase in
-                                        switch phase {
-                                        case .active(let location):
-                                            let x = plotFrame.width > 0
-                                                ? max(0, min(1, (location.x - plotFrame.origin.x) / plotFrame.width)) * maximumTokens * 1.1
-                                                : 0
-                                            let y = plotFrame.height > 0
-                                                ? max(0, min(1, (plotFrame.maxY - location.y) / plotFrame.height)) * maximumLatency * 1.1
-                                                : 0
-                                            selectedEfficiencyModel = nearestEfficiencyModel(toX: x, y: y, rows: rows)
-                                        case .ended:
-                                            selectedEfficiencyModel = nil
+                                ZStack(alignment: .topLeading) {
+                                    Rectangle()
+                                        .fill(Color.black.opacity(0.001))
+                                        .contentShape(Rectangle())
+                                        .onContinuousHover { phase in
+                                            switch phase {
+                                            case .active(let location):
+                                                let x = plotFrame.width > 0
+                                                    ? max(0, min(1, (location.x - plotFrame.origin.x) / plotFrame.width)) * maximumTokens * 1.1
+                                                    : 0
+                                                let y = plotFrame.height > 0
+                                                    ? max(0, min(1, (plotFrame.maxY - location.y) / plotFrame.height)) * maximumLatency * 1.1
+                                                    : 0
+                                                selectedEfficiencyModel = nearestEfficiencyModel(toX: x, y: y, rows: rows)
+                                            case .ended:
+                                                selectedEfficiencyModel = nil
+                                            }
                                         }
+                                    if let selectedEfficiencyModel,
+                                       let row = rows.first(where: { $0.model == selectedEfficiencyModel }) {
+                                        let x = row.averageTokens < maximumTokens * 0.55
+                                            ? plotFrame.maxX - 120
+                                            : plotFrame.minX + 120
+                                        efficiencyTooltip(row)
+                                            .frame(width: 230)
+                                            .position(
+                                                x: max(plotFrame.minX + 115, min(plotFrame.maxX - 115, x)),
+                                                y: plotFrame.minY + 72
+                                            )
+                                            .allowsHitTesting(false)
                                     }
+                                }
                             }
                         }
                     }
@@ -742,11 +793,10 @@ struct TokenUsageView: View {
                             }
                             .buttonStyle(.plain)
                             .help(row.model)
+                            .onHover { hovering in
+                                selectedEfficiencyModel = hovering ? row.model : nil
+                            }
                         }
-                    }
-                    if let selectedEfficiencyModel,
-                       let row = rows.first(where: { $0.model == selectedEfficiencyModel }) {
-                        efficiencyTooltip(row)
                     }
                 }
             }
@@ -980,8 +1030,9 @@ struct TokenUsageView: View {
             chartTooltipRow("平均延迟", duration(row.averageLatencyNS))
         }
         .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+        .frame(minWidth: 210, maxWidth: 230, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .shadow(radius: 8, y: 3)
     }
 
     private func selectedCostTrendPoint(in points: [CostTrendPoint]) -> CostTrendPoint? {
@@ -1016,8 +1067,9 @@ struct TokenUsageView: View {
             chartTooltipRow("总 Tokens", row.totalTokens.formatted())
         }
         .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+        .frame(minWidth: 210, maxWidth: 230, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .shadow(radius: 8, y: 3)
     }
 
     private func chartTooltipRow(_ title: String, _ value: String, color: Color? = nil) -> some View {
@@ -1043,6 +1095,36 @@ struct TokenUsageView: View {
                 + pow((rhs.averageLatencySeconds - y) / max(y, 1), 2)
             return left < right
         }?.model
+    }
+
+    private func modelAtDonutLocation(
+        _ location: CGPoint,
+        plotFrame: CGRect,
+        rows: [ModelUsageRow]
+    ) -> String? {
+        let deltaX = location.x - plotFrame.midX
+        let deltaY = location.y - plotFrame.midY
+        let outerRadius = min(plotFrame.width, plotFrame.height) / 2
+        let distance = hypot(deltaX, deltaY)
+        guard distance >= outerRadius * 0.58, distance <= outerRadius else { return nil }
+
+        var clockwiseAngle = atan2(deltaX, -deltaY)
+        if clockwiseAngle < 0 {
+            clockwiseAngle += 2 * .pi
+        }
+
+        let weights = rows.map { Double(max(UInt64(1), $0.totalTokens)) }
+        let totalWeight = weights.reduce(0, +)
+        guard totalWeight > 0 else { return nil }
+        let target = clockwiseAngle / (2 * .pi) * totalWeight
+        var accumulated = 0.0
+        for (index, weight) in weights.enumerated() {
+            accumulated += weight
+            if target <= accumulated {
+                return rows[index].model
+            }
+        }
+        return rows.last?.model
     }
 
     private var displayedTotalCost: String {
