@@ -5,6 +5,14 @@
 
 ## Unreleased
 
+### Added
+
+- 模型价格页面展示插件同步的服务等级价格，请求明细区分请求 Tier 与实际计价 Tier。
+
+### Fixed
+
+- 适配 cap-token-usage-tracker v1.3.2 的 `service_tiers` 价格簿，客户端同步与手工保存不再丢失 priority 等等级价格。
+
 ## 0.7.0 - 2026-08-04
 
 ### Added

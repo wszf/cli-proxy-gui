@@ -23,9 +23,10 @@ struct ModelsDevCatalogModel: Decodable, Sendable {
     let id: String?
     let name: String?
     let cost: ModelsDevCatalogCost?
+    let experimental: ModelsDevCatalogExperimental?
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, cost
+        case id, name, cost, experimental
     }
 
     init(from decoder: Decoder) throws {
@@ -33,7 +34,32 @@ struct ModelsDevCatalogModel: Decodable, Sendable {
         id = try container.decodeIfPresent(String.self, forKey: .id)
         name = try container.decodeIfPresent(String.self, forKey: .name)
         cost = try container.decodeIfPresent(ModelsDevCatalogCost.self, forKey: .cost)
+        experimental = try container.decodeIfPresent(ModelsDevCatalogExperimental.self, forKey: .experimental)
     }
+}
+
+struct ModelsDevCatalogExperimental: Decodable, Sendable {
+    let modes: [String: ModelsDevCatalogMode]
+
+    private enum CodingKeys: String, CodingKey { case modes }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        modes = try container.decodeIfPresent([String: ModelsDevCatalogMode].self, forKey: .modes) ?? [:]
+    }
+}
+
+struct ModelsDevCatalogMode: Decodable, Sendable {
+    let cost: ModelsDevCatalogCost?
+    let provider: ModelsDevCatalogModeProvider?
+}
+
+struct ModelsDevCatalogModeProvider: Decodable, Sendable {
+    let body: ModelsDevCatalogModeBody?
+}
+
+struct ModelsDevCatalogModeBody: Decodable, Sendable {
+    let serviceTier: String?
 }
 
 struct ModelsDevCatalogCost: Decodable, Sendable {
@@ -163,7 +189,13 @@ enum ModelsDevPriceMatcher {
                 let candidate = Candidate(
                     provider: normalizedProvider,
                     model: catalogModel,
-                    price: makePrice(cost, provider: normalizedProvider, model: catalogModel, updatedAt: updatedAt),
+                    price: makePrice(
+                        cost,
+                        experimental: model.experimental,
+                        provider: normalizedProvider,
+                        model: catalogModel,
+                        updatedAt: updatedAt
+                    ),
                     rank: rank
                 )
                 if let current = candidates[comparison], !isLess(candidate, than: current) {
@@ -196,6 +228,7 @@ enum ModelsDevPriceMatcher {
 
     private static func makePrice(
         _ cost: ModelsDevCatalogCost,
+        experimental: ModelsDevCatalogExperimental?,
         provider: String,
         model: String,
         updatedAt: String
@@ -210,16 +243,50 @@ enum ModelsDevPriceMatcher {
                 cacheCreation: tier.cacheWrite
             )
         }
+        var serviceTiers: [String: ServiceTierPrice] = [:]
+        for modeName in experimental?.modes.keys.sorted() ?? [] {
+            guard let mode = experimental?.modes[modeName],
+                  let modeCost = mode.cost,
+                  let rawServiceTier = mode.provider?.body?.serviceTier
+            else {
+                continue
+            }
+            let serviceTier = rawServiceTier.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !serviceTier.isEmpty, serviceTiers[serviceTier] == nil else { continue }
+            serviceTiers[serviceTier] = makeServiceTierPrice(modeCost)
+        }
+
         return ModelPrice(
             input: cost.input,
             output: cost.output,
             cacheRead: cost.cacheRead,
             cacheCreation: cost.cacheWrite,
             contextTiers: tiers,
+            serviceTiers: serviceTiers,
             source: "models.dev",
             catalogProvider: provider,
             catalogModel: model,
             updatedAt: updatedAt
+        )
+    }
+
+    private static func makeServiceTierPrice(_ cost: ModelsDevCatalogCost) -> ServiceTierPrice {
+        let tiers = cost.tiers.compactMap { tier -> ContextPriceTier? in
+            guard tier.tier.type.lowercased() == "context", tier.tier.size > 0 else { return nil }
+            return ContextPriceTier(
+                threshold: tier.tier.size,
+                input: tier.input,
+                output: tier.output,
+                cacheRead: tier.cacheRead,
+                cacheCreation: tier.cacheWrite
+            )
+        }
+        return ServiceTierPrice(
+            input: cost.input,
+            output: cost.output,
+            cacheRead: cost.cacheRead,
+            cacheCreation: cost.cacheWrite,
+            contextTiers: tiers
         )
     }
 

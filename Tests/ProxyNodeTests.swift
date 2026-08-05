@@ -433,6 +433,7 @@ final class ProxyNodeTests: XCTestCase {
               "priced": true,
               "source": "models.dev",
               "accounting_mode": "input_includes_cache",
+              "price_service_tier": "priority",
               "context_tokens": 589403,
               "billable_input_tokens": 347,
               "billed_cache_read_tokens": 589056,
@@ -452,6 +453,7 @@ final class ProxyNodeTests: XCTestCase {
         XCTAssertEqual(item.effectiveGenerationNS, 12_220_000_000)
         XCTAssertTrue(item.effectiveCacheHit)
         XCTAssertEqual(item.estimatedCost?.source, "models.dev")
+        XCTAssertEqual(item.estimatedCost?.priceServiceTier, "priority")
         XCTAssertEqual(item.estimatedCost?.totalUSD, 0.2954)
     }
 
@@ -552,6 +554,21 @@ final class ProxyNodeTests: XCTestCase {
                 "cache_read": 0.6,
                 "cache_creation": 4.5
               }],
+              "service_tiers": {
+                "priority": {
+                  "input": 12,
+                  "output": 60,
+                  "cache_read": 1.2,
+                  "cache_creation": 15,
+                  "context_tiers": [{
+                    "threshold": 200000,
+                    "input": 24,
+                    "output": 90,
+                    "cache_read": 2.4,
+                    "cache_creation": 30
+                  }]
+                }
+              },
               "source": "models.dev",
               "catalog_provider": "anthropic",
               "catalog_model": "claude-sonnet-4-6"
@@ -570,8 +587,15 @@ final class ProxyNodeTests: XCTestCase {
         XCTAssertEqual(price.input, 3)
         XCTAssertEqual(price.cacheCreation, 3.75)
         XCTAssertEqual(price.contextTiers.first?.threshold, 200_000)
+        XCTAssertEqual(price.serviceTiers["priority"]?.input, 12)
+        XCTAssertEqual(price.serviceTiers["priority"]?.contextTiers.first?.threshold, 200_000)
         XCTAssertEqual(price.source, "models.dev")
         XCTAssertEqual(book.syncSettings.providerPriority, ["openai", "anthropic"])
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let roundTrip = try decoder.decode(TokenUsagePriceBook.self, from: encoder.encode(book))
+        XCTAssertEqual(roundTrip.prices["claude-sonnet-4-6"]?.serviceTiers, price.serviceTiers)
     }
 
     func testDecodesTokenUsagePriceBookWithNullMappings() throws {
@@ -639,6 +663,21 @@ final class ProxyNodeTests: XCTestCase {
                     "cache_write": 3,
                     "tier": {"type": "context", "size": 200000}
                   }]
+                },
+                "experimental": {
+                  "modes": {
+                    "fast": {
+                      "cost": {
+                        "input": 2,
+                        "output": 10,
+                        "cache_read": 0.2,
+                        "cache_write": 4
+                      },
+                      "provider": {
+                        "body": {"service_tier": "priority"}
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -668,6 +707,8 @@ final class ProxyNodeTests: XCTestCase {
         XCTAssertEqual(result.prices["gpt-5-high"]?.input, 1)
         XCTAssertEqual(result.prices["gpt-5-high"]?.catalogProvider, "openai")
         XCTAssertEqual(result.prices["gpt-5-high"]?.contextTiers.first?.threshold, 200_000)
+        XCTAssertEqual(result.prices["gpt-5-high"]?.serviceTiers["priority"]?.input, 2)
+        XCTAssertEqual(result.prices["gpt-5-high"]?.serviceTiers["priority"]?.output, 10)
     }
 
     func testAggregatesUsageByModel() {

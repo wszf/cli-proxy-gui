@@ -88,6 +88,10 @@ struct TokenUsagePriceView: View {
     private var summary: some View {
         HStack(spacing: 18) {
             Label("已配置 \(drafts.count) 个模型", systemImage: "number")
+            let serviceTierCount = drafts.reduce(0) { $0 + $1.original.serviceTiers.count }
+            if serviceTierCount > 0 {
+                Label("\(serviceTierCount) 个服务等级价格", systemImage: "bolt.fill")
+            }
             if let lastSync = priceBook?.lastSync {
                 Label(
                     "最近同步：匹配 \(lastSync.matched) / \(lastSync.observed)",
@@ -110,7 +114,7 @@ struct TokenUsagePriceView: View {
         VStack(alignment: .leading, spacing: 6) {
             Label("价格单位：USD / 1M Token", systemImage: "info.circle")
                 .font(.headline)
-            Text("保存后，插件会使用当前价格簿重新估算历史请求费用。手工修改会标记为 manual，后续 Models.dev 同步不会覆盖；已有 Context Tier 会原样保留。")
+            Text("保存后，插件会使用当前价格簿重新估算历史请求费用。服务等级价格会按请求的 Tier 自动应用；手工修改基础价格时，已有服务等级和 Context Tier 会原样保留。")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Text("同步优先在 VPS 上执行；如果 VPS 无法访问 Models.dev，客户端会自动改用 Mac 获取目录，再通过 Management Key 保存结果。")
@@ -397,36 +401,105 @@ private struct ModelPriceDraftRow: View {
     let onDelete: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(draft.model)
-                    .font(.system(.callout, design: .monospaced, weight: .medium))
-                    .lineLimit(1)
-                HStack(spacing: 6) {
-                    Text(draft.source)
-                    if !draft.original.contextTiers.isEmpty {
-                        Text("· \(draft.original.contextTiers.count) 个 Context Tier")
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(draft.model)
+                        .font(.system(.callout, design: .monospaced, weight: .medium))
+                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(draft.source)
+                        if !draft.original.contextTiers.isEmpty {
+                            Text("· \(draft.original.contextTiers.count) 个 Context Tier")
+                        }
+                        if !draft.original.serviceTiers.isEmpty {
+                            Text("· \(draft.original.serviceTiers.count) 个服务等级")
+                        }
                     }
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                 }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .frame(width: 270, alignment: .leading)
+
+                PriceTextField(text: $draft.input)
+                PriceTextField(text: $draft.output)
+                PriceTextField(text: $draft.cacheRead)
+                PriceTextField(text: $draft.cacheCreation)
+
+                Button(role: .destructive, action: onDelete) {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.borderless)
+                .frame(width: 28)
+                .help("删除此价格条目")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+
+            ForEach(draft.original.serviceTiers.keys.sorted(), id: \.self) { tier in
+                if let price = draft.original.serviceTiers[tier] {
+                    ServiceTierPriceRow(tier: tier, price: price)
+                }
+            }
+        }
+    }
+}
+
+private struct ServiceTierPriceRow: View {
+    let tier: String
+    let price: ServiceTierPrice
+
+    var body: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 7) {
+                Image(systemName: "arrow.turn.down.right")
+                    .foregroundStyle(.tertiary)
+                Text(tier)
+                    .font(.system(.caption, design: .monospaced, weight: .semibold))
+                Text("请求 Tier")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                if !price.contextTiers.isEmpty {
+                    Text("· \(price.contextTiers.count) 个 Context Tier")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
             .frame(width: 270, alignment: .leading)
 
-            PriceTextField(text: $draft.input)
-            PriceTextField(text: $draft.output)
-            PriceTextField(text: $draft.cacheRead)
-            PriceTextField(text: $draft.cacheCreation)
-
-            Button(role: .destructive, action: onDelete) {
-                Image(systemName: "trash")
-            }
-            .buttonStyle(.borderless)
-            .frame(width: 28)
-            .help("删除此价格条目")
+            ServiceTierPriceValue(price.input)
+            ServiceTierPriceValue(price.output)
+            ServiceTierPriceValue(price.cacheRead)
+            ServiceTierPriceValue(price.cacheCreation, width: 130)
+            Color.clear.frame(width: 28, height: 1)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 9)
+        .padding(.vertical, 7)
+        .background(Color.accentColor.opacity(0.045))
+    }
+}
+
+private struct ServiceTierPriceValue: View {
+    let value: Double
+    let width: CGFloat
+
+    init(_ value: Double, width: CGFloat = 110) {
+        self.value = value
+        self.width = width
+    }
+
+    var body: some View {
+        Text(Self.formatted(value))
+            .font(.system(.callout, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .frame(width: width, alignment: .leading)
+    }
+
+    private static func formatted(_ value: Double) -> String {
+        if value == 0 { return "0" }
+        return String(format: "%.8f", value)
+            .replacingOccurrences(of: "0+$", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "\\.$", with: "", options: .regularExpression)
     }
 }
 

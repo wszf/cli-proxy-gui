@@ -1459,6 +1459,9 @@ struct TokenUsageView: View {
             Text(item.source.isEmpty ? "—" : item.source)
         case .serviceTier:
             Text(item.serviceTier.isEmpty ? "—" : item.serviceTier)
+        case .priceServiceTier:
+            Text(nonBlank(item.estimatedCost?.priceServiceTier))
+                .foregroundStyle(item.estimatedCost?.priceServiceTier == nil ? .secondary : .primary)
         case .result:
             Text(item.result)
                 .foregroundStyle(item.failed ? Color.red : Color.green)
@@ -1504,12 +1507,19 @@ struct TokenUsageView: View {
     }
 
     private func requestCostBreakdown(_ cost: UsageRequestEstimatedCost) -> String {
-        [
+        var parts = [
             "输入 \(currency(cost.inputUSD, code: "USD"))",
             "输出 \(currency(cost.outputUSD, code: "USD"))",
             "缓存读取 \(currency(cost.cacheReadUSD, code: "USD"))",
             "缓存创建 \(currency(cost.cacheCreationUSD, code: "USD"))"
-        ].joined(separator: " · ")
+        ]
+        if let tier = cost.priceServiceTier, !tier.isEmpty {
+            parts.append("计价 Tier \(tier)")
+        }
+        if let threshold = cost.tierThreshold, threshold > 0 {
+            parts.append("Context Tier > \(threshold.formatted())")
+        }
+        return parts.joined(separator: " · ")
     }
 
     private func sortedRequestItems(_ items: [UsageRequestItem]) -> [UsageRequestItem] {
@@ -1536,6 +1546,11 @@ struct TokenUsageView: View {
             return compareValues(lhs.source, rhs.source)
         case .serviceTier:
             return compareValues(lhs.serviceTier, rhs.serviceTier)
+        case .priceServiceTier:
+            return compareValues(
+                lhs.estimatedCost?.priceServiceTier ?? "",
+                rhs.estimatedCost?.priceServiceTier ?? ""
+            )
         case .result:
             return compareValues(lhs.result, rhs.result)
         case .ttft:
@@ -1671,6 +1686,7 @@ private enum RequestDetailColumn: String, CaseIterable, Identifiable {
     case model
     case source
     case serviceTier
+    case priceServiceTier
     case result
     case ttft
     case generation
@@ -1693,7 +1709,8 @@ private enum RequestDetailColumn: String, CaseIterable, Identifiable {
         case .time: "时间"
         case .model: "模型名称"
         case .source: "来源"
-        case .serviceTier: "Tier"
+        case .serviceTier: "请求 Tier"
+        case .priceServiceTier: "计价 Tier"
         case .result: "结果"
         case .ttft: "首字延迟"
         case .generation: "生成时间"
@@ -1716,7 +1733,7 @@ private enum RequestDetailColumn: String, CaseIterable, Identifiable {
         case .time: 170
         case .model: 180
         case .source: 130
-        case .serviceTier, .reasoningEffort: 100
+        case .serviceTier, .priceServiceTier, .reasoningEffort: 100
         case .result: 125
         case .ttft, .generation: 95
         case .tps, .cacheHit: 80

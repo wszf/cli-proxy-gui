@@ -319,12 +319,48 @@ struct ContextPriceTier: Codable, Equatable, Sendable {
     }
 }
 
+struct ServiceTierPrice: Codable, Equatable, Sendable {
+    var input: Double
+    var output: Double
+    var cacheRead: Double
+    var cacheCreation: Double
+    var contextTiers: [ContextPriceTier]
+
+    private enum CodingKeys: String, CodingKey {
+        case input, output, cacheRead, cacheCreation, contextTiers
+    }
+
+    init(
+        input: Double = 0,
+        output: Double = 0,
+        cacheRead: Double = 0,
+        cacheCreation: Double = 0,
+        contextTiers: [ContextPriceTier] = []
+    ) {
+        self.input = input
+        self.output = output
+        self.cacheRead = cacheRead
+        self.cacheCreation = cacheCreation
+        self.contextTiers = contextTiers
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        input = try container.decodeIfPresent(Double.self, forKey: .input) ?? 0
+        output = try container.decodeIfPresent(Double.self, forKey: .output) ?? 0
+        cacheRead = try container.decodeIfPresent(Double.self, forKey: .cacheRead) ?? 0
+        cacheCreation = try container.decodeIfPresent(Double.self, forKey: .cacheCreation) ?? 0
+        contextTiers = try container.decodeIfPresent([ContextPriceTier].self, forKey: .contextTiers) ?? []
+    }
+}
+
 struct ModelPrice: Codable, Equatable, Sendable {
     var input: Double
     var output: Double
     var cacheRead: Double
     var cacheCreation: Double
     var contextTiers: [ContextPriceTier]
+    var serviceTiers: [String: ServiceTierPrice]
     var accountingMode: String
     var source: String
     var catalogProvider: String
@@ -333,7 +369,7 @@ struct ModelPrice: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case input, output
-        case cacheRead, cacheCreation, contextTiers, accountingMode
+        case cacheRead, cacheCreation, contextTiers, serviceTiers, accountingMode
         case source
         case catalogProvider, catalogModel, updatedAt
     }
@@ -344,6 +380,7 @@ struct ModelPrice: Codable, Equatable, Sendable {
         cacheRead: Double = 0,
         cacheCreation: Double = 0,
         contextTiers: [ContextPriceTier] = [],
+        serviceTiers: [String: ServiceTierPrice] = [:],
         accountingMode: String = "",
         source: String = "manual",
         catalogProvider: String = "",
@@ -355,6 +392,7 @@ struct ModelPrice: Codable, Equatable, Sendable {
         self.cacheRead = cacheRead
         self.cacheCreation = cacheCreation
         self.contextTiers = contextTiers
+        self.serviceTiers = serviceTiers
         self.accountingMode = accountingMode
         self.source = source
         self.catalogProvider = catalogProvider
@@ -369,6 +407,7 @@ struct ModelPrice: Codable, Equatable, Sendable {
         cacheRead = try container.decodeIfPresent(Double.self, forKey: .cacheRead) ?? 0
         cacheCreation = try container.decodeIfPresent(Double.self, forKey: .cacheCreation) ?? 0
         contextTiers = try container.decodeIfPresent([ContextPriceTier].self, forKey: .contextTiers) ?? []
+        serviceTiers = try container.decodeIfPresent([String: ServiceTierPrice].self, forKey: .serviceTiers) ?? [:]
         accountingMode = try container.decodeIfPresent(String.self, forKey: .accountingMode) ?? ""
         source = try container.decodeIfPresent(String.self, forKey: .source) ?? "manual"
         catalogProvider = try container.decodeIfPresent(String.self, forKey: .catalogProvider) ?? ""
@@ -509,6 +548,7 @@ struct UsageRequestEstimatedCost: Codable, Equatable, Sendable {
     let priced: Bool
     let source: String?
     let accountingMode: String?
+    let priceServiceTier: String?
     let tierThreshold: UInt64?
     let contextTokens: UInt64?
     let billableInputTokens: UInt64?
@@ -520,7 +560,7 @@ struct UsageRequestEstimatedCost: Codable, Equatable, Sendable {
     let totalUSD: Double
 
     private enum CodingKeys: String, CodingKey {
-        case priced, source, accountingMode, tierThreshold, contextTokens
+        case priced, source, accountingMode, priceServiceTier, tierThreshold, contextTokens
         case billableInputTokens, billedCacheReadTokens
         case inputUSD = "inputUsd"
         case outputUSD = "outputUsd"
