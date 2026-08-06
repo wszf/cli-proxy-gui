@@ -2,6 +2,23 @@ import XCTest
 @testable import CLIProxyGUI
 
 final class ProxyNodeTests: XCTestCase {
+    func testCacheHitRateUsesInputTokenDenominator() {
+        let rate = TokenUsageMetrics.cacheHitRate(
+            inputTokens: 79_288_647,
+            cacheReadTokens: 74_466_560
+        )
+
+        XCTAssertEqual(rate, 93.9183, accuracy: 0.0001)
+        XCTAssertEqual(
+            TokenUsageMetrics.cacheHitRate(inputTokens: 100, cacheReadTokens: 120),
+            100
+        )
+        XCTAssertEqual(
+            TokenUsageMetrics.cacheHitRate(inputTokens: 0, cacheReadTokens: 100),
+            0
+        )
+    }
+
     func testManagementKeyVaultRoundTrip() throws {
         let firstNodeID = UUID()
         let secondNodeID = UUID()

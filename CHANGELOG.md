@@ -5,6 +5,12 @@
 
 ## Unreleased
 
+## 0.7.2 - 2026-08-06
+
+### Fixed
+
+- 修正 Codex 缓存命中率分母重复计入缓存 Token 的问题，与 cap-token-usage-tracker v1.3.1 的统计口径保持一致。
+
 ## 0.7.1 - 2026-08-05
 
 ### Added
