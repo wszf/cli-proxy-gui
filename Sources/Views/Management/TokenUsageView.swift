@@ -1769,9 +1769,10 @@ private struct TokenTrendPoint: Identifiable {
         Double(inputTokens) + Double(outputTokens) + Double(cacheReadTokens)
     }
     var cacheHitRate: Double {
-        let context = Double(inputTokens) + Double(cacheReadTokens)
-        guard context > 0 else { return 0 }
-        return min(100, max(0, Double(cacheReadTokens) / context * 100))
+        TokenUsageMetrics.cacheHitRate(
+            inputTokens: inputTokens,
+            cacheReadTokens: cacheReadTokens
+        )
     }
 }
 

@@ -1,5 +1,12 @@
 import Foundation
 
+enum TokenUsageMetrics {
+    static func cacheHitRate(inputTokens: UInt64, cacheReadTokens: UInt64) -> Double {
+        guard inputTokens > 0 else { return 0 }
+        return min(100, Double(cacheReadTokens) / Double(inputTokens) * 100)
+    }
+}
+
 enum UsageRange: String, CaseIterable, Identifiable, Sendable {
     case day = "24h"
     case week = "7d"
