@@ -38,6 +38,26 @@ final class ProxyNodeTests: XCTestCase {
         XCTAssertEqual(decoded[secondNodeID], "second-key")
     }
 
+    func testAPIKeyNotesRoundTripWithoutPersistingTheRawKey() throws {
+        let nodeID = UUID()
+        let apiKey = "sk-test-\(UUID().uuidString)"
+        defer { APIKeyNoteStore.remove(for: nodeID) }
+
+        APIKeyNoteStore.replaceNotes([apiKey: "OpenCode"], for: nodeID)
+
+        XCTAssertEqual(APIKeyNoteStore.note(for: nodeID, key: apiKey), "OpenCode")
+        XCTAssertEqual(APIKeyNoteStore.note(for: nodeID, key: "another-key"), "")
+        XCTAssertEqual(
+            APIKeyNoteStore.fingerprint(for: apiKey).count,
+            64
+        )
+
+        let storedData = try XCTUnwrap(
+            UserDefaults.standard.data(forKey: "api-key-notes-v1")
+        )
+        XCTAssertFalse(String(decoding: storedData, as: UTF8.self).contains(apiKey))
+    }
+
     func testSingleInstanceLockExcludesSecondOwnerAndReleases() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
