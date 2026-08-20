@@ -5,7 +5,9 @@ struct APIKeysView: View {
     let node: ProxyNode
 
     @State private var keys: [String] = []
+    @State private var notes: [String] = []
     @State private var savedKeys: [String] = []
+    @State private var savedNotes: [String] = []
     @State private var isLoading = false
     @State private var isSaving = false
     @State private var revealKeys = false
@@ -32,7 +34,7 @@ struct APIKeysView: View {
             } else {
                 List {
                     ForEach(keys.indices, id: \.self) { index in
-                        HStack {
+                        HStack(spacing: 10) {
                             Text("\(index + 1)")
                                 .foregroundStyle(.secondary)
                                 .frame(width: 28, alignment: .trailing)
@@ -43,8 +45,11 @@ struct APIKeysView: View {
                                 SecureField("API Key", text: $keys[index])
                                     .font(.system(.body, design: .monospaced))
                             }
+                            TextField("备注（仅本机）", text: $notes[index])
+                                .frame(minWidth: 160, idealWidth: 220, maxWidth: 300)
                             Button(role: .destructive) {
                                 keys.remove(at: index)
+                                notes.remove(at: index)
                             } label: {
                                 Image(systemName: "trash")
                             }
@@ -65,14 +70,18 @@ struct APIKeysView: View {
             ClientConfigurationExamplesView(node: node, apiKeys: cleanKeys)
         }
         .confirmationDialog(
-            "替换节点上的全部 API Keys？",
+            hasKeyChanges ? "替换节点上的全部 API Keys？" : "保存 API Key 备注？",
             isPresented: $showSaveConfirmation,
             titleVisibility: .visible
         ) {
-            Button("保存 \(cleanKeys.count) 个 Key") { Task { await save() } }
+            Button(hasKeyChanges ? "保存 \(cleanKeys.count) 个 Key" : "保存备注") {
+                Task { await save() }
+            }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("被移除的 Key 会立即失效，使用它们的客户端将无法继续访问。")
+            Text(hasKeyChanges
+                ? "被移除的 Key 会立即失效，使用它们的客户端将无法继续访问。备注仅保存于本机，不会写入节点。"
+                : "备注仅保存于本机，不会写入节点。")
         }
     }
 
@@ -80,7 +89,7 @@ struct APIKeysView: View {
         HStack {
             Label("API Keys", systemImage: "key")
                 .font(.headline)
-            if keys != savedKeys {
+            if hasUnsavedChanges {
                 Text("有未保存修改")
                     .font(.caption)
                     .foregroundStyle(.orange)
@@ -97,6 +106,7 @@ struct APIKeysView: View {
                 .help(revealKeys ? "隐藏 Keys" : "显示 Keys")
             Button {
                 keys.append("sk-" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())
+                notes.append("")
             } label: {
                 Label("新增", systemImage: "plus")
             }
@@ -108,14 +118,32 @@ struct APIKeysView: View {
             .disabled(isLoading || isSaving)
             Button("保存") { showSaveConfirmation = true }
                 .buttonStyle(.borderedProminent)
-                .disabled(keys == savedKeys || isSaving)
+                .disabled(!hasUnsavedChanges || isSaving)
         }
         .padding(12)
     }
 
+    private var cleanEntries: [(key: String, note: String)] {
+        keys.enumerated().compactMap { index, rawKey in
+            let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !key.isEmpty else { return nil }
+            let note = notes.indices.contains(index)
+                ? notes[index].trimmingCharacters(in: .whitespacesAndNewlines)
+                : ""
+            return (key: key, note: note)
+        }
+    }
+
     private var cleanKeys: [String] {
-        keys.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        cleanEntries.map { $0.key }
+    }
+
+    private var hasUnsavedChanges: Bool {
+        keys != savedKeys || notes != savedNotes
+    }
+
+    private var hasKeyChanges: Bool {
+        cleanKeys != savedKeys
     }
 
     @MainActor
@@ -130,8 +158,11 @@ struct APIKeysView: View {
         defer { isLoading = false }
         do {
             let values = try await client.fetchAPIKeys(node: node, managementKey: key)
+            let loadedNotes = values.map { APIKeyNoteStore.note(for: node.id, key: $0) }
             keys = values
+            notes = loadedNotes
             savedKeys = values
+            savedNotes = loadedNotes
         } catch {
             message = .error(ManagementAPIClient.friendlyMessage(for: error))
         }
@@ -144,11 +175,22 @@ struct APIKeysView: View {
         isSaving = true
         message = nil
         defer { isSaving = false }
+        let entries = cleanEntries
+        let values = entries.map { $0.key }
+        let remarks = entries.map { $0.note }
+        var notesByKey: [String: String] = [:]
+        for entry in entries {
+            notesByKey[entry.key] = entry.note
+        }
+
         do {
-            try await client.replaceAPIKeys(cleanKeys, node: node, managementKey: managementKey)
-            keys = cleanKeys
-            savedKeys = cleanKeys
-            message = .success("API Keys 已更新。")
+            try await client.replaceAPIKeys(values, node: node, managementKey: managementKey)
+            APIKeyNoteStore.replaceNotes(notesByKey, for: node.id)
+            keys = values
+            notes = remarks
+            savedKeys = values
+            savedNotes = remarks
+            message = .success("API Keys 已更新，备注已保存到本机。")
             await store.refresh(node)
         } catch {
             message = .error(ManagementAPIClient.friendlyMessage(for: error))

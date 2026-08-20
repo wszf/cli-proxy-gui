@@ -5,6 +5,12 @@
 
 ## Unreleased
 
+## 0.7.3 - 2026-08-20
+
+### Added
+
+- API Keys 页面支持为每个 Key 添加备注，备注仅保存于本机，不写入 CLIProxyAPI 后台。
+
 ## 0.7.2 - 2026-08-06
 
 ### Fixed
