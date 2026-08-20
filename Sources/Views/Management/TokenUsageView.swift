@@ -356,10 +356,16 @@ struct TokenUsageView: View {
                                         .onContinuousHover { phase in
                                             switch phase {
                                             case .active(let location):
-                                                let relativeX = max(0, min(plotFrame.width, location.x - plotFrame.origin.x))
-                                                let ratio = plotFrame.width > 0 ? relativeX / plotFrame.width : 0
-                                                let index = min(points.count - 1, max(0, Int((ratio * Double(points.count - 1)).rounded())))
-                                                selectedTrendID = points[index].id
+                                                let relativeX = max(
+                                                    0,
+                                                    min(plotFrame.width, location.x - plotFrame.origin.x)
+                                                )
+                                                if let date: Date = proxy.value(atX: relativeX) {
+                                                    selectedTrendID = nearestTrendPoint(
+                                                        to: date,
+                                                        in: points
+                                                    )?.id
+                                                }
                                             case .ended:
                                                 selectedTrendID = nil
                                             }
@@ -367,10 +373,16 @@ struct TokenUsageView: View {
                                         .gesture(
                                             DragGesture(minimumDistance: 0)
                                                 .onChanged { value in
-                                                    let relativeX = max(0, min(plotFrame.width, value.location.x - plotFrame.origin.x))
-                                                    let ratio = plotFrame.width > 0 ? relativeX / plotFrame.width : 0
-                                                    let index = min(points.count - 1, max(0, Int((ratio * Double(points.count - 1)).rounded())))
-                                                    selectedTrendID = points[index].id
+                                                    let relativeX = max(
+                                                        0,
+                                                        min(plotFrame.width, value.location.x - plotFrame.origin.x)
+                                                    )
+                                                    if let date: Date = proxy.value(atX: relativeX) {
+                                                        selectedTrendID = nearestTrendPoint(
+                                                            to: date,
+                                                            in: points
+                                                        )?.id
+                                                    }
                                                 }
                                         )
                                     if let selected = selectedTrendPoint(in: points) {
@@ -635,10 +647,16 @@ struct TokenUsageView: View {
                                         .onContinuousHover { phase in
                                             switch phase {
                                             case .active(let location):
-                                                let relativeX = max(0, min(plotFrame.width, location.x - plotFrame.origin.x))
-                                                let ratio = plotFrame.width > 0 ? relativeX / plotFrame.width : 0
-                                                let index = min(points.count - 1, max(0, Int((ratio * Double(points.count - 1)).rounded())))
-                                                selectedCostTrendID = points[index].id
+                                                let relativeX = max(
+                                                    0,
+                                                    min(plotFrame.width, location.x - plotFrame.origin.x)
+                                                )
+                                                if let date: Date = proxy.value(atX: relativeX) {
+                                                    selectedCostTrendID = nearestCostTrendPoint(
+                                                        to: date,
+                                                        in: points
+                                                    )?.id
+                                                }
                                             case .ended:
                                                 selectedCostTrendID = nil
                                             }
@@ -646,10 +664,16 @@ struct TokenUsageView: View {
                                         .gesture(
                                             DragGesture(minimumDistance: 0)
                                                 .onChanged { value in
-                                                    let relativeX = max(0, min(plotFrame.width, value.location.x - plotFrame.origin.x))
-                                                    let ratio = plotFrame.width > 0 ? relativeX / plotFrame.width : 0
-                                                    let index = min(points.count - 1, max(0, Int((ratio * Double(points.count - 1)).rounded())))
-                                                    selectedCostTrendID = points[index].id
+                                                    let relativeX = max(
+                                                        0,
+                                                        min(plotFrame.width, value.location.x - plotFrame.origin.x)
+                                                    )
+                                                    if let date: Date = proxy.value(atX: relativeX) {
+                                                        selectedCostTrendID = nearestCostTrendPoint(
+                                                            to: date,
+                                                            in: points
+                                                        )?.id
+                                                    }
                                                 }
                                         )
                                     if let selected = selectedCostTrendPoint(in: points) {
@@ -980,6 +1004,15 @@ struct TokenUsageView: View {
         return points.first { $0.id == selectedTrendID }
     }
 
+    private func nearestTrendPoint(
+        to date: Date,
+        in points: [TokenTrendPoint]
+    ) -> TokenTrendPoint? {
+        points.min {
+            abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
+        }
+    }
+
     private func trendTooltip(_ point: TokenTrendPoint) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(point.date.formatted(date: .abbreviated, time: .shortened))
@@ -1040,6 +1073,15 @@ struct TokenUsageView: View {
     private func selectedCostTrendPoint(in points: [CostTrendPoint]) -> CostTrendPoint? {
         guard let selectedCostTrendID else { return nil }
         return points.first { $0.id == selectedCostTrendID }
+    }
+
+    private func nearestCostTrendPoint(
+        to date: Date,
+        in points: [CostTrendPoint]
+    ) -> CostTrendPoint? {
+        points.min {
+            abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
+        }
     }
 
     private func costTooltip(_ point: CostTrendPoint, currency currencyCode: String) -> some View {
