@@ -5,6 +5,12 @@
 
 ## Unreleased
 
+## 0.7.5 - 2026-08-27
+
+### Changed
+
+- 完善 API Keys 页面中的 Claude Code 临时与持久化配置示例，并将 Claude Code、Codex、模型与 API 测试改为标签切换。
+
 ## 0.7.4 - 2026-08-20
 
 ### Fixed

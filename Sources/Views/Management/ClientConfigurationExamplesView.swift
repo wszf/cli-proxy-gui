@@ -3,10 +3,34 @@ import SwiftUI
 
 enum ClientConfigurationExamples {
     static func claudeCode(nodeAddress: String, apiKey: String) -> String {
-        """
-        export ANTHROPIC_BASE_URL=\(shellQuoted(ProxyNode.normalize(nodeAddress)))
+        let baseURL = ProxyNode.normalize(nodeAddress)
+
+        return """
+        # 仅对当前终端会话生效
+        export ANTHROPIC_BASE_URL=\(shellQuoted(baseURL))
         export ANTHROPIC_AUTH_TOKEN=\(shellQuoted(apiKey))
+        # 关闭更新、遥测等非必要外部请求；如需保留这些功能可删除此行
+        export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC='1'
+
+        # 如需固定模型，请替换为“查询当前可用模型”中的 ID
+        # export ANTHROPIC_MODEL='claude-sonnet-4-6'
+
         claude
+        """
+    }
+
+    static func claudeCodeSettings(nodeAddress: String, apiKey: String) -> String {
+        let baseURL = ProxyNode.normalize(nodeAddress)
+
+        return """
+        {
+          "$schema": "https://json.schemastore.org/claude-code-settings.json",
+          "env": {
+            "ANTHROPIC_BASE_URL": \(jsonQuoted(baseURL)),
+            "ANTHROPIC_AUTH_TOKEN": \(jsonQuoted(apiKey)),
+            "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+          }
+        }
         """
     }
 
@@ -75,6 +99,11 @@ enum ClientConfigurationExamples {
         "'\(value.replacingOccurrences(of: "'", with: "'\"'\"'"))'"
     }
 
+    private static func jsonQuoted(_ value: String) -> String {
+        let data = try! JSONEncoder().encode(value)
+        return String(decoding: data, as: UTF8.self)
+    }
+
     private static func tomlEscaped(_ value: String) -> String {
         value
             .replacingOccurrences(of: "\\", with: "\\\\")
@@ -88,7 +117,32 @@ struct ClientConfigurationExamplesView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedKeyIndex = 0
+    @State private var selectedExampleTab: ExampleTab = .claudeCode
     @State private var copiedID: String?
+
+    private enum ExampleTab: String, CaseIterable, Identifiable {
+        case claudeCode
+        case codex
+        case api
+
+        var id: Self { self }
+
+        var title: String {
+            switch self {
+            case .claudeCode: "Claude Code"
+            case .codex: "Codex"
+            case .api: "模型与 API 测试"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .claudeCode: "terminal"
+            case .codex: "chevron.left.forwardslash.chevron.right"
+            case .api: "network"
+            }
+        }
+    }
 
     private var selectedKey: String {
         guard apiKeys.indices.contains(selectedKeyIndex) else { return "YOUR_API_KEY" }
@@ -103,81 +157,17 @@ struct ClientConfigurationExamplesView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     keySelection
-
-                    exampleSection(
-                        title: "Claude Code",
-                        subtitle: "复制到终端执行；环境变量仅对当前终端会话生效。",
-                        systemImage: "terminal",
-                        snippets: [
-                            Snippet(
-                                id: "claude",
-                                label: "终端",
-                                content: ClientConfigurationExamples.claudeCode(
-                                    nodeAddress: node.address,
-                                    apiKey: selectedKey
-                                )
-                            )
-                        ]
-                    )
-
-                    exampleSection(
-                        title: "Codex",
-                        subtitle: "适合 VPS：写入用户级 ~/.codex/config.toml 后即可使用，无需设置环境变量。",
-                        systemImage: "chevron.left.forwardslash.chevron.right",
-                        snippets: [
-                            Snippet(
-                                id: "codex-config",
-                                label: "~/.codex/config.toml（包含完整 Key）",
-                                content: ClientConfigurationExamples.codexConfig(
-                                    nodeAddress: node.address,
-                                    apiKey: selectedKey
-                                )
-                            ),
-                            Snippet(
-                                id: "codex-permissions",
-                                label: "保护配置文件",
-                                content: "chmod 600 ~/.codex/config.toml"
-                            )
-                        ]
-                    )
-
-                    exampleSection(
-                        title: "模型与 API 测试",
-                        subtitle: "模型列表命令使用 jq 提取 ID；请求失败时可直接看到节点返回的错误。",
-                        systemImage: "network",
-                        snippets: [
-                            Snippet(
-                                id: "available-models",
-                                label: "查询当前可用模型",
-                                content: ClientConfigurationExamples.availableModels(
-                                    nodeAddress: node.address,
-                                    apiKey: selectedKey
-                                )
-                            ),
-                            Snippet(
-                                id: "responses-request",
-                                label: "Responses API",
-                                content: ClientConfigurationExamples.responsesRequest(
-                                    nodeAddress: node.address,
-                                    apiKey: selectedKey
-                                )
-                            ),
-                            Snippet(
-                                id: "claude-messages-request",
-                                label: "Claude Messages API",
-                                content: ClientConfigurationExamples.claudeMessagesRequest(
-                                    nodeAddress: node.address,
-                                    apiKey: selectedKey
-                                )
-                            )
-                        ]
-                    )
+                    exampleTabs
+                    selectedExamples
                 }
                 .padding(20)
             }
         }
         .frame(width: 720, height: 660)
         .onChange(of: selectedKeyIndex) {
+            copiedID = nil
+        }
+        .onChange(of: selectedExampleTab) {
             copiedID = nil
         }
     }
@@ -220,6 +210,112 @@ struct ClientConfigurationExamplesView: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private var exampleTabs: some View {
+        Picker("示例类型", selection: $selectedExampleTab) {
+            ForEach(ExampleTab.allCases) { tab in
+                Label(tab.title, systemImage: tab.systemImage)
+                    .tag(tab)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+    }
+
+    @ViewBuilder
+    private var selectedExamples: some View {
+        switch selectedExampleTab {
+        case .claudeCode:
+            claudeCodeExamples
+        case .codex:
+            codexExamples
+        case .api:
+            apiExamples
+        }
+    }
+
+    private var claudeCodeExamples: some View {
+        exampleSection(
+            title: "Claude Code",
+            subtitle: "终端示例可直接执行；持久化示例请合并到 ~/.claude/settings.json，勿提交到项目仓库。",
+            systemImage: "terminal",
+            snippets: [
+                Snippet(
+                    id: "claude-terminal",
+                    label: "终端（当前会话）",
+                    content: ClientConfigurationExamples.claudeCode(
+                        nodeAddress: node.address,
+                        apiKey: selectedKey
+                    )
+                ),
+                Snippet(
+                    id: "claude-settings",
+                    label: "~/.claude/settings.json（持久化）",
+                    content: ClientConfigurationExamples.claudeCodeSettings(
+                        nodeAddress: node.address,
+                        apiKey: selectedKey
+                    )
+                )
+            ]
+        )
+    }
+
+    private var codexExamples: some View {
+        exampleSection(
+            title: "Codex",
+            subtitle: "写入用户级 ~/.codex/config.toml 后即可使用，无需设置环境变量。",
+            systemImage: "chevron.left.forwardslash.chevron.right",
+            snippets: [
+                Snippet(
+                    id: "codex-config",
+                    label: "~/.codex/config.toml（包含完整 Key）",
+                    content: ClientConfigurationExamples.codexConfig(
+                        nodeAddress: node.address,
+                        apiKey: selectedKey
+                    )
+                ),
+                Snippet(
+                    id: "codex-permissions",
+                    label: "保护配置文件",
+                    content: "chmod 600 ~/.codex/config.toml"
+                )
+            ]
+        )
+    }
+
+    private var apiExamples: some View {
+        exampleSection(
+            title: "模型与 API 测试",
+            subtitle: "模型列表命令使用 jq 提取 ID；请求失败时可直接看到节点返回的错误。",
+            systemImage: "network",
+            snippets: [
+                Snippet(
+                    id: "available-models",
+                    label: "查询当前可用模型",
+                    content: ClientConfigurationExamples.availableModels(
+                        nodeAddress: node.address,
+                        apiKey: selectedKey
+                    )
+                ),
+                Snippet(
+                    id: "responses-request",
+                    label: "Responses API",
+                    content: ClientConfigurationExamples.responsesRequest(
+                        nodeAddress: node.address,
+                        apiKey: selectedKey
+                    )
+                ),
+                Snippet(
+                    id: "claude-messages-request",
+                    label: "Claude Messages API",
+                    content: ClientConfigurationExamples.claudeMessagesRequest(
+                        nodeAddress: node.address,
+                        apiKey: selectedKey
+                    )
+                )
+            ]
+        )
     }
 
     private func exampleSection(

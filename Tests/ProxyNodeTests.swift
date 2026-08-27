@@ -106,7 +106,28 @@ final class ProxyNodeTests: XCTestCase {
 
         XCTAssertTrue(example.contains("ANTHROPIC_BASE_URL='https://proxy.example.com'"))
         XCTAssertTrue(example.contains("ANTHROPIC_AUTH_TOKEN='sk-test'"))
+        XCTAssertTrue(example.contains("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC='1'"))
+        XCTAssertTrue(example.contains("# export ANTHROPIC_MODEL='claude-sonnet-4-6'"))
         XCTAssertTrue(example.hasSuffix("claude"))
+    }
+
+    func testBuildsClaudeCodePersistentConfigurationExample() throws {
+        let settings = ClientConfigurationExamples.claudeCodeSettings(
+            nodeAddress: "https://proxy.example.com/",
+            apiKey: "key-with-\"quote\n"
+        )
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(settings.utf8)) as? [String: Any]
+        )
+        let env = try XCTUnwrap(object["env"] as? [String: String])
+
+        XCTAssertEqual(
+            object["$schema"] as? String,
+            "https://json.schemastore.org/claude-code-settings.json"
+        )
+        XCTAssertEqual(env["ANTHROPIC_BASE_URL"], "https://proxy.example.com")
+        XCTAssertEqual(env["ANTHROPIC_AUTH_TOKEN"], "key-with-\"quote\n")
+        XCTAssertEqual(env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"], "1")
     }
 
     func testBuildsCodexConfigurationExample() {
