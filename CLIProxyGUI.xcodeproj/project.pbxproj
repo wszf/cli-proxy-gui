@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		05F8C001F2B0ADDA2230BD94 /* NodeDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A26F14BF4A5E04B71587ECE /* NodeDashboardView.swift */; };
 		08C7641FD7EFA6ADCE95B126 /* ModelsDevPriceCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8EB355CC4AE64E45F073381 /* ModelsDevPriceCatalog.swift */; };
+		0C9428528FAE8F5FE4DD7050 /* AuthFileNoteStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 322D9B99DAB172A049768889 /* AuthFileNoteStoreTests.swift */; };
+		16973DD8B4A807065CB5FCE9 /* AuthJSONImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51DE550764686C09C436662 /* AuthJSONImporterTests.swift */; };
 		180C32930B37ABBBBC5AF264 /* TokenUsagePriceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2156E9A1639269C7C8B6624 /* TokenUsagePriceView.swift */; };
 		1C5E9A4975FB141B7BAD98E8 /* ManagementAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA25A684932CC2F9A360E510 /* ManagementAPIClient.swift */; };
 		2F490796A26D507438787B1A /* CredentialQuotaParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECBF54FFD0E0BA87C62115FF /* CredentialQuotaParser.swift */; };
@@ -27,10 +29,12 @@
 		B782030D4D6C01DB2C8C465B /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5134A1040275490E19D925E2 /* KeychainStore.swift */; };
 		B8765B2950D9368C21D7C158 /* ClientConfigurationExamplesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FDC3DFF443444D37918E7E0 /* ClientConfigurationExamplesView.swift */; };
 		BAE0B2FBDEA9CCAA2056615F /* ManagementModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89BCE86FA76E55E93F00CDC3 /* ManagementModels.swift */; };
+		BE2F59A34FD9CF104BD9B195 /* AuthJSONImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D1E911A864BBEF9C5E5E929 /* AuthJSONImporter.swift */; };
 		D5B9D59A757BA71DCA39CB90 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4AB4ADAC519CB34D4735D6B7 /* Assets.xcassets */; };
 		D8834DABE4784F13F74221AA /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5E8CCA945E979F6663323FC /* ContentView.swift */; };
 		E6C77059B675B6F9D9B376D6 /* TokenUsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F99B9B7C5993A4CF48F0A34 /* TokenUsageModels.swift */; };
 		E9BA500266859A909083C071 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 50F68950DC6D23F10714EE71 /* PrivacyInfo.xcprivacy */; };
+		F0BA4291A8F3A0BF7AC5D900 /* AuthFileNoteStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFD98B8A624BDD3725A4EA89 /* AuthFileNoteStore.swift */; };
 		FFE9929ECC3943526D339E28 /* ProxyNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 306E0AA1CD1D850B35D4FF61 /* ProxyNode.swift */; };
 /* End PBXBuildFile section */
 
@@ -51,10 +55,12 @@
 		16219B9227D6240951E64A9F /* CLIProxyGUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CLIProxyGUI.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		295BC5A05C776D017FE60C97 /* CLIProxyGUIApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIProxyGUIApp.swift; sourceTree = "<group>"; };
 		306E0AA1CD1D850B35D4FF61 /* ProxyNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyNode.swift; sourceTree = "<group>"; };
+		322D9B99DAB172A049768889 /* AuthFileNoteStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFileNoteStoreTests.swift; sourceTree = "<group>"; };
 		387400CC073D8064FC44AD92 /* LogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogsView.swift; sourceTree = "<group>"; };
 		3B0FC8EE33908ACE38EB3A27 /* NodeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeStore.swift; sourceTree = "<group>"; };
 		44E49CCC5C4148225908A3BE /* PageMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageMessage.swift; sourceTree = "<group>"; };
 		4AB4ADAC519CB34D4735D6B7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		4D1E911A864BBEF9C5E5E929 /* AuthJSONImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthJSONImporter.swift; sourceTree = "<group>"; };
 		50F68950DC6D23F10714EE71 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		5134A1040275490E19D925E2 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		5816AFFF81D3C136998E1446 /* ConfigEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigEditorView.swift; sourceTree = "<group>"; };
@@ -65,9 +71,11 @@
 		7F612470677394FD1E9501BC /* APIKeyNoteStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIKeyNoteStore.swift; sourceTree = "<group>"; };
 		89BCE86FA76E55E93F00CDC3 /* ManagementModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagementModels.swift; sourceTree = "<group>"; };
 		9FDC3DFF443444D37918E7E0 /* ClientConfigurationExamplesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientConfigurationExamplesView.swift; sourceTree = "<group>"; };
+		AFD98B8A624BDD3725A4EA89 /* AuthFileNoteStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFileNoteStore.swift; sourceTree = "<group>"; };
 		B2156E9A1639269C7C8B6624 /* TokenUsagePriceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenUsagePriceView.swift; sourceTree = "<group>"; };
 		BA25A684932CC2F9A360E510 /* ManagementAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagementAPIClient.swift; sourceTree = "<group>"; };
 		C419627B2CAA75F270DB7E1F /* AuthFilesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFilesView.swift; sourceTree = "<group>"; };
+		C51DE550764686C09C436662 /* AuthJSONImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthJSONImporterTests.swift; sourceTree = "<group>"; };
 		C775CB97AEE62928D81164B4 /* CLIProxyGUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CLIProxyGUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D8EB355CC4AE64E45F073381 /* ModelsDevPriceCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsDevPriceCatalog.swift; sourceTree = "<group>"; };
 		E5E8CCA945E979F6663323FC /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -94,6 +102,8 @@
 		33798773F7BB824E415F26C6 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				322D9B99DAB172A049768889 /* AuthFileNoteStoreTests.swift */,
+				C51DE550764686C09C436662 /* AuthJSONImporterTests.swift */,
 				7F561732C11EED25E8C070AC /* ProxyNodeTests.swift */,
 			);
 			path = Tests;
@@ -123,6 +133,7 @@
 		812E0E215D7780981794602E /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				4D1E911A864BBEF9C5E5E929 /* AuthJSONImporter.swift */,
 				89BCE86FA76E55E93F00CDC3 /* ManagementModels.swift */,
 				306E0AA1CD1D850B35D4FF61 /* ProxyNode.swift */,
 				5F99B9B7C5993A4CF48F0A34 /* TokenUsageModels.swift */,
@@ -134,6 +145,7 @@
 			isa = PBXGroup;
 			children = (
 				7F612470677394FD1E9501BC /* APIKeyNoteStore.swift */,
+				AFD98B8A624BDD3725A4EA89 /* AuthFileNoteStore.swift */,
 				3B0FC8EE33908ACE38EB3A27 /* NodeStore.swift */,
 			);
 			path = Stores;
@@ -273,6 +285,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0C9428528FAE8F5FE4DD7050 /* AuthFileNoteStoreTests.swift in Sources */,
+				16973DD8B4A807065CB5FCE9 /* AuthJSONImporterTests.swift in Sources */,
 				86F05B62F0CAF643D54F8BA1 /* ProxyNodeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -284,7 +298,9 @@
 				95462691AF110060C2471F84 /* APIKeyNoteStore.swift in Sources */,
 				84F89B70B4B83D65858E9E85 /* APIKeysView.swift in Sources */,
 				61D259B0CA690EA4AB41D446 /* AppDelegate.swift in Sources */,
+				F0BA4291A8F3A0BF7AC5D900 /* AuthFileNoteStore.swift in Sources */,
 				89AF869ED9EEAC99F1044F1C /* AuthFilesView.swift in Sources */,
+				BE2F59A34FD9CF104BD9B195 /* AuthJSONImporter.swift in Sources */,
 				4111CA8378E14C9070355809 /* CLIProxyGUIApp.swift in Sources */,
 				B8765B2950D9368C21D7C158 /* ClientConfigurationExamplesView.swift in Sources */,
 				8A43985BFA04B6E30D1C3BC9 /* ConfigEditorView.swift in Sources */,
@@ -352,7 +368,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 18;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -365,7 +381,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.7.5;
+				MARKETING_VERSION = 0.7.6;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -446,7 +462,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 18;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -465,7 +481,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.7.5;
+				MARKETING_VERSION = 0.7.6;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

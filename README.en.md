@@ -21,7 +21,8 @@ endpoints may require corresponding updates here.
   plugins, and runtime settings
 - Read and edit the complete `config.yaml`
 - Manage client API keys
-- View, upload, enable, disable, and delete JSON authentication files
+- View, upload, paste, enable, disable, and delete JSON authentication files; automatically convert Codex `auth.json` (including JSON-encoded strings)
+- Add local-only notes to authentication files without uploading them to the server
 - View, search, and clear server logs
 - Inspect CAP Token Usage Tracker trends, models, dimensions, requests, and costs
 - Store Management Keys in macOS Keychain

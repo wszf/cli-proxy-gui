@@ -85,6 +85,7 @@ final class NodeStore: ObservableObject {
     func remove(_ node: ProxyNode) {
         KeychainStore.delete(for: node.id)
         APIKeyNoteStore.remove(for: node.id)
+        AuthFileNoteStore.remove(for: node.id)
         nodes.removeAll { $0.id == node.id }
         snapshots[node.id] = nil
         credentialQuotas[node.id] = nil

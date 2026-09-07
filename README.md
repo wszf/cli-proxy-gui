@@ -19,7 +19,8 @@ CLIProxy GUI 是一个只面向 macOS 的原生 SwiftUI 客户端，用来统一
 - 展示延迟、版本、凭证健康、账号额度、可用模型、当日用量、插件和运行配置
 - 读取和编辑完整 `config.yaml`，保存后由服务端触发热重载
 - 管理客户端 API Keys，支持生成、修改和批量替换
-- 查看、上传、启用、禁用和删除 JSON 认证文件
+- 查看、上传、粘贴导入、启用、禁用和删除 JSON 认证文件；自动转换 Codex `auth.json`（也支持转义后的 JSON 字符串）
+- 为认证文件添加本地备注，不上传服务器
 - 查看、搜索和清空节点运行日志
 - 读取 CAP Token Usage Tracker 的趋势、模型、维度、请求明细和预估费用
 - 将 Management Key 存储在 macOS Keychain
