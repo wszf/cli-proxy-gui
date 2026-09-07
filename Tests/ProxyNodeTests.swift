@@ -170,6 +170,39 @@ final class ProxyNodeTests: XCTestCase {
         XCTAssertTrue(claude.contains("\"model\": \"claude-sonnet-4-6\""))
     }
 
+    func testSelectedModelIsUsedInAllClientExamples() throws {
+        let address = "https://proxy.example.com"
+        let model = "gpt-6-astra"
+        let terminal = ClientConfigurationExamples.claudeCode(nodeAddress: address, apiKey: "key", model: model)
+        XCTAssertTrue(terminal.contains("export ANTHROPIC_MODEL='gpt-6-astra'"))
+        XCTAssertFalse(terminal.contains("# export ANTHROPIC_MODEL"))
+
+        let settings = ClientConfigurationExamples.claudeCodeSettings(nodeAddress: address, apiKey: "key", model: model)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(settings.utf8)) as? [String: Any])
+        let env = try XCTUnwrap(object["env"] as? [String: String])
+        XCTAssertEqual(env["ANTHROPIC_MODEL"], model)
+
+        let config = ClientConfigurationExamples.codexConfig(nodeAddress: address, apiKey: "key", model: model)
+        XCTAssertTrue(config.contains("model = \"gpt-6-astra\""))
+        for example in [
+            ClientConfigurationExamples.responsesRequest(nodeAddress: address, apiKey: "key", model: model),
+            ClientConfigurationExamples.claudeMessagesRequest(nodeAddress: address, apiKey: "key", model: model)
+        ] {
+            XCTAssertTrue(example.contains("\"model\": \"gpt-6-astra\""))
+        }
+    }
+
+    func testSelectedModelEscaping() throws {
+        let model = "custom'\"model\n"
+        let settings = ClientConfigurationExamples.claudeCodeSettings(nodeAddress: "localhost:8317", apiKey: "key", model: model)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(settings.utf8)) as? [String: Any])
+        XCTAssertEqual((object["env"] as? [String: String])?["ANTHROPIC_MODEL"], model)
+        let config = ClientConfigurationExamples.codexConfig(nodeAddress: "localhost:8317", apiKey: "key", model: model)
+        XCTAssertTrue(config.contains("model = \"custom'\\\"model\\n\""))
+        let request = ClientConfigurationExamples.responsesRequest(nodeAddress: "localhost:8317", apiKey: "key", model: model)
+        XCTAssertTrue(request.contains("'\"'\"'"))
+    }
+
     func testExtractsDashboardMetrics() throws {
         let config = try JSONSerialization.jsonObject(with: Data("""
         {

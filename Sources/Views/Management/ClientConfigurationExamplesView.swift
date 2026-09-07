@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum ClientConfigurationExamples {
-    static func claudeCode(nodeAddress: String, apiKey: String) -> String {
+    static func claudeCode(nodeAddress: String, apiKey: String, model: String? = nil) -> String {
         let baseURL = ProxyNode.normalize(nodeAddress)
 
         return """
@@ -12,14 +12,13 @@ enum ClientConfigurationExamples {
         # 关闭更新、遥测等非必要外部请求；如需保留这些功能可删除此行
         export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC='1'
 
-        # 如需固定模型，请替换为“查询当前可用模型”中的 ID
-        # export ANTHROPIC_MODEL='claude-sonnet-4-6'
+        \(model.map { "export ANTHROPIC_MODEL=\(shellQuoted($0))" } ?? "# 如需固定模型，请替换为当前可用模型 ID\n# export ANTHROPIC_MODEL='claude-sonnet-4-6'")
 
         claude
         """
     }
 
-    static func claudeCodeSettings(nodeAddress: String, apiKey: String) -> String {
+    static func claudeCodeSettings(nodeAddress: String, apiKey: String, model: String? = nil) -> String {
         let baseURL = ProxyNode.normalize(nodeAddress)
 
         return """
@@ -28,18 +27,18 @@ enum ClientConfigurationExamples {
           "env": {
             "ANTHROPIC_BASE_URL": \(jsonQuoted(baseURL)),
             "ANTHROPIC_AUTH_TOKEN": \(jsonQuoted(apiKey)),
-            "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+            "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"\(model.map { ",\n    \"ANTHROPIC_MODEL\": \(jsonQuoted($0))" } ?? "")
           }
         }
         """
     }
 
-    static func codexConfig(nodeAddress: String, apiKey: String) -> String {
+    static func codexConfig(nodeAddress: String, apiKey: String, model: String? = nil) -> String {
         let baseURL = apiURL(nodeAddress: nodeAddress, path: "v1")
 
         return """
         model_provider = "cliproxyapi"
-        model = "gpt-5.6-sol"
+        model = "\(tomlEscaped(model ?? "gpt-5.6-sol"))"
         model_reasoning_effort = "xhigh"
         plan_mode_reasoning_effort = "xhigh"
 
@@ -61,20 +60,20 @@ enum ClientConfigurationExamples {
         """
     }
 
-    static func responsesRequest(nodeAddress: String, apiKey: String) -> String {
+    static func responsesRequest(nodeAddress: String, apiKey: String, model: String? = nil) -> String {
         let url = apiURL(nodeAddress: nodeAddress, path: "v1/responses")
         return """
         curl -sS -X POST \(shellQuoted(url)) \\
           -H \(shellQuoted("Authorization: Bearer \(apiKey)")) \\
           -H 'Content-Type: application/json' \\
           -d '{
-            "model": "gpt-5.6-sol",
+            "model": \(jsonQuoted(model ?? "gpt-5.6-sol").replacingOccurrences(of: "'", with: "'\"'\"'")),
             "input": "Reply with OK."
           }'
         """
     }
 
-    static func claudeMessagesRequest(nodeAddress: String, apiKey: String) -> String {
+    static func claudeMessagesRequest(nodeAddress: String, apiKey: String, model: String? = nil) -> String {
         let url = apiURL(nodeAddress: nodeAddress, path: "v1/messages")
         return """
         curl -sS -X POST \(shellQuoted(url)) \\
@@ -82,7 +81,7 @@ enum ClientConfigurationExamples {
           -H 'Content-Type: application/json' \\
           -H 'anthropic-version: 2023-06-01' \\
           -d '{
-            "model": "claude-sonnet-4-6",
+            "model": \(jsonQuoted(model ?? "claude-sonnet-4-6").replacingOccurrences(of: "'", with: "'\"'\"'")),
             "max_tokens": 64,
             "messages": [{"role": "user", "content": "Reply with OK."}]
           }'
@@ -108,6 +107,9 @@ enum ClientConfigurationExamples {
         value
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+            .replacingOccurrences(of: "\t", with: "\\t")
     }
 }
 
@@ -119,6 +121,13 @@ struct ClientConfigurationExamplesView: View {
     @State private var selectedKeyIndex = 0
     @State private var selectedExampleTab: ExampleTab = .claudeCode
     @State private var copiedID: String?
+    @State private var selectedModel = ""
+    @State private var modelIDs: [String] = []
+    @State private var isLoadingModels = false
+    @State private var modelsError: String?
+    @State private var modelRefreshID = UUID()
+
+    private var exampleModel: String { selectedModel.isEmpty ? "YOUR_MODEL_ID" : selectedModel }
 
     private enum ExampleTab: String, CaseIterable, Identifiable {
         case claudeCode
@@ -156,7 +165,7 @@ struct ClientConfigurationExamplesView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    keySelection
+                    configurationSelection
                     exampleTabs
                     selectedExamples
                 }
@@ -164,7 +173,16 @@ struct ClientConfigurationExamplesView: View {
             }
         }
         .frame(width: 720, height: 660)
+        .task(id: modelRefreshID) {
+            await loadModels()
+        }
         .onChange(of: selectedKeyIndex) {
+            modelIDs = []
+            selectedModel = ""
+            copiedID = nil
+            modelRefreshID = UUID()
+        }
+        .onChange(of: selectedModel) {
             copiedID = nil
         }
         .onChange(of: selectedExampleTab) {
@@ -188,28 +206,88 @@ struct ClientConfigurationExamplesView: View {
         .padding(20)
     }
 
-    @ViewBuilder
-    private var keySelection: some View {
-        if apiKeys.isEmpty {
-            Label("当前没有 API Key，示例将使用 YOUR_API_KEY 占位符。", systemImage: "info.circle")
-                .foregroundStyle(.secondary)
-        } else {
-            HStack {
-                Text("示例使用")
-                    .foregroundStyle(.secondary)
-                Picker("API Key", selection: $selectedKeyIndex) {
-                    ForEach(apiKeys.indices, id: \.self) { index in
-                        Text("\(index + 1). \(masked(apiKeys[index]))").tag(index)
+    private var configurationSelection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                HStack(spacing: 8) {
+                    Text("API Key")
+                        .foregroundStyle(.secondary)
+                    Picker("API Key", selection: $selectedKeyIndex) {
+                        if apiKeys.isEmpty {
+                            Text("暂无 Key").tag(0)
+                        }
+                        ForEach(apiKeys.indices, id: \.self) { index in
+                            Text("\(index + 1). \(masked(apiKeys[index]))").tag(index)
+                        }
                     }
+                    .labelsHidden()
+                    .frame(width: 195)
+                    .disabled(apiKeys.isEmpty)
                 }
-                .labelsHidden()
-                .frame(maxWidth: 280)
-                Spacer()
-                Label("复制内容包含完整 Key，请妥善保管", systemImage: "lock")
+
+                HStack(spacing: 8) {
+                    Text("模型")
+                        .foregroundStyle(.secondary)
+                    Picker("模型", selection: $selectedModel) {
+                        if selectedModel.isEmpty {
+                            Text(isLoadingModels ? "加载中…" : "请选择模型").tag("")
+                        }
+                        ForEach(modelIDs, id: \.self) { model in
+                            Text(model).tag(model)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity)
+                    .disabled(isLoadingModels || modelIDs.isEmpty)
+                    .help("来自当前节点 /v1/models；选中模型会填入所有示例，协议兼容性以服务端为准。")
+                }
+
+                Button {
+                    modelRefreshID = UUID()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .help("刷新当前服务支持的模型")
+                .disabled(isLoadingModels || apiKeys.isEmpty)
+
+                Image(systemName: "lock")
+                    .foregroundStyle(.secondary)
+                    .help("复制内容包含完整 API Key，请妥善保管")
+                    .accessibilityLabel("复制内容包含完整 API Key，请妥善保管")
+            }
+            .controlSize(.small)
+
+            if let modelsError {
+                Text(modelsError)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    @MainActor
+    private func loadModels() async {
+        guard !apiKeys.isEmpty else {
+            modelsError = "请先添加 API Key；示例暂使用 YOUR_MODEL_ID 占位符。"
+            return
+        }
+        isLoadingModels = true
+        modelsError = nil
+        do {
+            let groups = try await ManagementAPIClient().fetchAvailableModels(node: node, apiKey: selectedKey)
+            try Task.checkCancellation()
+            modelIDs = Array(Set(groups.flatMap { $0.models.map(\.name) })).sorted()
+            if !modelIDs.contains(selectedModel) {
+                selectedModel = modelIDs.first ?? ""
+            }
+            if modelIDs.isEmpty {
+                modelsError = "当前服务未返回可用模型；示例暂使用 YOUR_MODEL_ID 占位符。"
+            }
+        } catch {
+            guard !Task.isCancelled else { return }
+            modelsError = "加载模型失败：\(error.localizedDescription)"
+        }
+        isLoadingModels = false
     }
 
     private var exampleTabs: some View {
@@ -246,7 +324,8 @@ struct ClientConfigurationExamplesView: View {
                     label: "终端（当前会话）",
                     content: ClientConfigurationExamples.claudeCode(
                         nodeAddress: node.address,
-                        apiKey: selectedKey
+                        apiKey: selectedKey,
+                        model: exampleModel
                     )
                 ),
                 Snippet(
@@ -254,7 +333,8 @@ struct ClientConfigurationExamplesView: View {
                     label: "~/.claude/settings.json（持久化）",
                     content: ClientConfigurationExamples.claudeCodeSettings(
                         nodeAddress: node.address,
-                        apiKey: selectedKey
+                        apiKey: selectedKey,
+                        model: exampleModel
                     )
                 )
             ]
@@ -272,7 +352,8 @@ struct ClientConfigurationExamplesView: View {
                     label: "~/.codex/config.toml（包含完整 Key）",
                     content: ClientConfigurationExamples.codexConfig(
                         nodeAddress: node.address,
-                        apiKey: selectedKey
+                        apiKey: selectedKey,
+                        model: exampleModel
                     )
                 ),
                 Snippet(
@@ -303,7 +384,8 @@ struct ClientConfigurationExamplesView: View {
                     label: "Responses API",
                     content: ClientConfigurationExamples.responsesRequest(
                         nodeAddress: node.address,
-                        apiKey: selectedKey
+                        apiKey: selectedKey,
+                        model: exampleModel
                     )
                 ),
                 Snippet(
@@ -311,7 +393,8 @@ struct ClientConfigurationExamplesView: View {
                     label: "Claude Messages API",
                     content: ClientConfigurationExamples.claudeMessagesRequest(
                         nodeAddress: node.address,
-                        apiKey: selectedKey
+                        apiKey: selectedKey,
+                        model: exampleModel
                     )
                 )
             ]

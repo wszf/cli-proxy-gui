@@ -245,7 +245,7 @@ struct ManagementAPIClient: Sendable {
         _ = try await request(path: "logs", node: node, key: managementKey, method: "DELETE")
     }
 
-    private func fetchAvailableModels(
+    func fetchAvailableModels(
         node: ProxyNode,
         apiKey: String
     ) async throws -> [AvailableModelGroup] {
