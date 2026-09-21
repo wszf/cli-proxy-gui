@@ -104,6 +104,17 @@ struct UsageGroup: Codable, Equatable, Sendable {
         case averageTTFTNS = "averageTtftNs"
     }
 
+    // Plugin 2.x merges success/failure dimensions and clears failed/failureStatus.
+    // Counters remain authoritative in both the old split rows and new merged rows.
+    var successfulRequests: UInt64 {
+        requests - min(requests, failedRequests)
+    }
+
+    var failureRate: Double {
+        guard requests > 0 else { return 0 }
+        return Double(min(requests, failedRequests)) / Double(requests)
+    }
+
     func matchesDimensionQuery(_ query: String) -> Bool {
         let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return true }
@@ -116,8 +127,9 @@ struct UsageGroup: Codable, Equatable, Sendable {
             authType,
             serviceTier,
             reasoningEffort,
-            failed ? "failed 失败" : "success 成功",
-            String(failureStatus)
+            successfulRequests > 0 ? "success 成功" : "",
+            failedRequests > 0 ? "failed 失败" : "",
+            failedRequests > 0 && failureStatus > 0 ? String(failureStatus) : ""
         ]
         .contains { $0.localizedCaseInsensitiveContains(normalized) }
     }

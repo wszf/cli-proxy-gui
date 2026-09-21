@@ -824,6 +824,98 @@ final class ProxyNodeTests: XCTestCase {
         XCTAssertFalse(group.matchesDimensionQuery("anthropic"))
     }
 
+    func testDecodesPlugin2MergedFailureDimensions() throws {
+        // v2.0.8 /stats keeps the counters but resets the legacy outcome fields.
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let snapshot = try decoder.decode(TokenUsageSnapshot.self, from: Data("""
+        {
+          "schema_version": 2,
+          "generated_at": "2026-09-21T00:00:00Z", "range": "24h",
+          "retained_since": "2026-09-01T00:00:00Z", "last_used": "2026-09-21T00:00:00Z",
+          "summary": {
+            "requests": 4, "failed_requests": 1,
+            "input_tokens": 100, "output_tokens": 20, "reasoning_tokens": 0,
+            "cached_tokens": 0, "cache_read_tokens": 0, "cache_creation_tokens": 0,
+            "total_tokens": 120, "total_latency_ns": 0, "total_ttft_ns": 0,
+            "latency_samples": 0, "ttft_samples": 0
+          },
+          "groups": [{
+            "provider": "codex", "executor_type": "", "model": "example-model",
+            "alias": "", "source": "", "auth_type": "oauth",
+            "service_tier": "", "reasoning_effort": "",
+            "failed": false, "failure_status": 0,
+            "requests": 4, "failed_requests": 1,
+            "input_tokens": 100, "output_tokens": 20, "reasoning_tokens": 0,
+            "cached_tokens": 0, "cache_read_tokens": 0, "cache_creation_tokens": 0,
+            "total_tokens": 120, "total_latency_ns": 0, "total_ttft_ns": 0,
+            "latency_samples": 0, "ttft_samples": 0,
+            "average_latency_ns": 0, "average_ttft_ns": 0
+          }],
+          "series": [], "model_series": [], "sources": []
+        }
+        """.utf8))
+        let group = try XCTUnwrap(snapshot.groups.first)
+        XCTAssertFalse(group.failed)
+        XCTAssertEqual(group.successfulRequests, 3)
+        XCTAssertEqual(group.failedRequests, 1)
+        XCTAssertEqual(group.failureRate, 0.25, accuracy: 0.0001)
+        for query in ["成功", "失败", " SUCCESS ", "FAILED"] {
+            XCTAssertTrue(group.matchesDimensionQuery(query), query)
+        }
+        XCTAssertFalse(group.matchesDimensionQuery("0")) // No synthetic status code.
+        let row = try XCTUnwrap(ModelUsageRow.aggregate(snapshot.groups).first)
+        XCTAssertEqual(row.requests, 4)
+        XCTAssertEqual(row.failedRequests, 1)
+        XCTAssertEqual(row.totalTokens, 120)
+    }
+
+    func testLegacySplitFailureDimensionsRemainCompatible() {
+        let success = usageGroup(model: "example-model", provider: "codex", requests: 3, tokens: 120)
+        let failure = usageGroup(
+            model: "example-model", provider: "codex", requests: 1, tokens: 0,
+            failedRequests: 1, failed: true, failureStatus: 429
+        )
+        XCTAssertEqual(success.successfulRequests, 3)
+        XCTAssertEqual(success.failureRate, 0)
+        XCTAssertTrue(success.matchesDimensionQuery("成功"))
+        XCTAssertFalse(success.matchesDimensionQuery("失败"))
+        XCTAssertEqual(failure.successfulRequests, 0)
+        XCTAssertEqual(failure.failureRate, 1)
+        XCTAssertTrue(failure.matchesDimensionQuery("失败"))
+        XCTAssertTrue(failure.matchesDimensionQuery("429"))
+        XCTAssertFalse(failure.matchesDimensionQuery("成功"))
+        let rows = ModelUsageRow.aggregate([success, failure])
+        XCTAssertEqual(rows.first?.requests, 4)
+        XCTAssertEqual(rows.first?.failedRequests, 1)
+    }
+
+    func testMergedAllFailureDimensionsUseCountersNotLegacyFlag() {
+        let group = usageGroup(
+            model: "example-model", provider: "codex", requests: 2, tokens: 0,
+            failedRequests: 2
+        )
+        XCTAssertFalse(group.failed)
+        XCTAssertEqual(group.successfulRequests, 0)
+        XCTAssertEqual(group.failureRate, 1)
+        XCTAssertTrue(group.matchesDimensionQuery("failed"))
+        XCTAssertFalse(group.matchesDimensionQuery("success"))
+    }
+
+    func testDimensionOutcomeHandlesEmptyAndInconsistentCounters() {
+        let empty = usageGroup(model: "example-model", provider: "codex", requests: 0, tokens: 0)
+        XCTAssertEqual(empty.successfulRequests, 0)
+        XCTAssertEqual(empty.failureRate, 0)
+        XCTAssertFalse(empty.matchesDimensionQuery("成功"))
+        XCTAssertFalse(empty.matchesDimensionQuery("失败"))
+        let inconsistent = usageGroup(
+            model: "example-model", provider: "codex", requests: 1, tokens: 0,
+            failedRequests: UInt64.max
+        )
+        XCTAssertEqual(inconsistent.successfulRequests, 0)
+        XCTAssertEqual(inconsistent.failureRate, 1)
+    }
+
     func testUsageRequestPaginationState() {
         let firstPage = UsageRequestPage(total: 120, offset: 0, limit: 50, items: [])
         let emptyLastPage = UsageRequestPage(total: 100, offset: 100, limit: 50, items: [])
@@ -839,7 +931,10 @@ final class ProxyNodeTests: XCTestCase {
         model: String,
         provider: String,
         requests: UInt64,
-        tokens: UInt64
+        tokens: UInt64,
+        failedRequests: UInt64 = 0,
+        failed: Bool = false,
+        failureStatus: Int = 0
     ) -> UsageGroup {
         UsageGroup(
             provider: provider,
@@ -850,10 +945,10 @@ final class ProxyNodeTests: XCTestCase {
             authType: "",
             serviceTier: "",
             reasoningEffort: "",
-            failed: false,
-            failureStatus: 0,
+            failed: failed,
+            failureStatus: failureStatus,
             requests: requests,
-            failedRequests: 0,
+            failedRequests: failedRequests,
             inputTokens: tokens,
             outputTokens: 0,
             reasoningTokens: 0,
