@@ -842,7 +842,7 @@ struct TokenUsageView: View {
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        TextField("筛选模型、提供商、来源、认证类型…", text: $dimensionQuery)
+                        TextField("筛选模型、提供商、来源、成功 / 失败…", text: $dimensionQuery)
                             .textFieldStyle(.roundedBorder)
                             .frame(maxWidth: 360)
                         Text("显示 \(min(dimensionGroups.count, 100)) / \(stats.groups.count) 组")
@@ -850,6 +850,10 @@ struct TokenUsageView: View {
                             .foregroundStyle(.secondary)
                         Spacer()
                     }
+
+                    Text("成功与失败按请求计数汇总；具体结果和状态码请查看逐请求明细。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
                     if dimensionGroups.isEmpty {
                         ContentUnavailableView.search(text: dimensionQuery)
@@ -1294,9 +1298,10 @@ struct TokenUsageView: View {
             dimensionHeading("认证")
             dimensionHeading("服务层级")
             dimensionHeading("推理强度")
-            dimensionHeading("结果")
-            dimensionHeading("状态码")
             dimensionHeading("请求")
+            dimensionHeading("成功数")
+            dimensionHeading("失败数")
+            dimensionHeading("失败率")
             dimensionHeading("输入")
             dimensionHeading("输出")
             dimensionHeading("推理")
@@ -1318,10 +1323,12 @@ struct TokenUsageView: View {
             dimensionText(group.authType)
             dimensionText(group.serviceTier)
             dimensionText(group.reasoningEffort)
-            Text(group.failed ? "失败" : "成功")
-                .foregroundStyle(group.failed ? .red : .green)
-            dimensionNumber(group.failureStatus == 0 ? "—" : String(group.failureStatus))
             dimensionNumber(group.requests.formatted())
+            dimensionNumber(group.successfulRequests.formatted())
+            dimensionNumber(group.failedRequests.formatted())
+                .foregroundStyle(group.failedRequests > 0 ? Color.red : Color.secondary)
+            dimensionNumber(group.requests == 0 ? "—" : group.failureRate.formatted(.percent.precision(.fractionLength(1))))
+                .foregroundStyle(group.failedRequests > 0 ? Color.red : Color.secondary)
             dimensionNumber(group.inputTokens.formatted())
             dimensionNumber(group.outputTokens.formatted())
             dimensionNumber(group.reasoningTokens.formatted())
