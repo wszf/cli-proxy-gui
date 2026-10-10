@@ -742,7 +742,7 @@ struct ManagementAPIClient: Sendable {
     }
 }
 
-private struct TokenUsagePriceSavePayload: Encodable {
+struct TokenUsagePriceSavePayload: Encodable {
     let prices: [String: ModelPrice]
     let syncSettings: PriceSyncSettings
 }

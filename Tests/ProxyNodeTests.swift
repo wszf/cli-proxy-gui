@@ -19,6 +19,81 @@ final class ProxyNodeTests: XCTestCase {
         )
     }
 
+    func testTrendChartCacheIsPartOfInputForAllLegendCombinations() {
+        for (input, output, cache): (UInt64, UInt64, UInt64) in [
+            (100, 30, 60), (100, 30, 120), (0, 30, 100), (0, 0, 0),
+            (UInt64.max, 0, UInt64.max)
+        ] {
+            for showInput in [false, true] {
+                for showOutput in [false, true] {
+                    for showCache in [false, true] {
+                        let inputBar = showInput ? TokenUsageMetrics.chartInputTokens(
+                            inputTokens: input, cacheReadTokens: cache, showCacheRead: showCache
+                        ) : 0
+                        let cacheBar = showCache ? TokenUsageMetrics.chartCacheTokens(
+                            inputTokens: input, cacheReadTokens: cache
+                        ) : 0
+                        let outputBar = showOutput ? output : 0
+                        let expectedInput = showInput ? input : (showCache ? min(input, cache) : 0)
+                        XCTAssertEqual(inputBar + cacheBar, expectedInput)
+                        XCTAssertEqual(Double(inputBar) + Double(cacheBar) + Double(outputBar),
+                                       Double(expectedInput) + Double(showOutput ? output : 0))
+                    }
+                }
+            }
+        }
+    }
+
+    func testPriceSavePreservesTimePricingAfterEditingBaseRate() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let original = Data("""
+        {"schema_version":1,"revision":9,"prices":{"example-model":{
+          "input":1,"output":2,"cache_read":0.1,"cache_creation":0.5,
+          "time_zone":"Asia/Shanghai","time_tiers":[
+            {"name":"overnight","days":[1,5],"start":"22:00","end":"06:00",
+             "input":0.5,"output":1,"cache_read":0.05,"cache_creation":0.2},
+            {"name":"daily","start":"12:00","end":"13:00",
+             "input":0,"output":0,"cache_read":0,"cache_creation":0}
+          ]
+        }}}
+        """.utf8)
+        var book = try decoder.decode(TokenUsagePriceBook.self, from: original)
+        let tiers = try XCTUnwrap(book.prices["example-model"]?.timeTiers)
+        XCTAssertEqual(tiers[0].days, [1, 5])
+        XCTAssertNil(tiers[1].days)
+        book.prices["example-model"]?.input = 3
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(TokenUsagePriceSavePayload(
+            prices: book.prices, syncSettings: book.syncSettings
+        ))
+        let saved = try decoder.decode(TokenUsagePriceBook.self, from: data)
+        XCTAssertEqual(saved.prices["example-model"]?.timeZone, "Asia/Shanghai")
+        XCTAssertEqual(saved.prices["example-model"]?.timeTiers, tiers)
+        XCTAssertEqual(saved.prices["example-model"]?.input, 3)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let prices = try XCTUnwrap(json["prices"] as? [String: [String: Any]])
+        XCTAssertNotNil(prices["example-model"]?["time_zone"])
+        XCTAssertNotNil(prices["example-model"]?["time_tiers"])
+    }
+
+    func testLegacyPricesDoNotSendUnsupportedTimePricingFields() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        for json in ["{}", "{\"time_zone\":null,\"time_tiers\":null}"] {
+            let price = try decoder.decode(ModelPrice.self, from: Data(json.utf8))
+            XCTAssertNil(price.timeZone)
+            XCTAssertNil(price.timeTiers)
+            let encoder = JSONEncoder()
+            encoder.keyEncodingStrategy = .convertToSnakeCase
+            let data = try encoder.encode(price)
+            let saved = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            XCTAssertNil(saved["time_zone"])
+            XCTAssertNil(saved["time_tiers"])
+        }
+    }
+
     func testManagementKeyVaultRoundTrip() throws {
         let firstNodeID = UUID()
         let secondNodeID = UUID()

@@ -5,6 +5,21 @@ enum TokenUsageMetrics {
         guard inputTokens > 0 else { return 0 }
         return min(100, Double(cacheReadTokens) / Double(inputTokens) * 100)
     }
+
+    // Cache reads are a subset of input, not an additional token category.
+    static func chartCacheTokens(inputTokens: UInt64, cacheReadTokens: UInt64) -> UInt64 {
+        min(inputTokens, cacheReadTokens)
+    }
+
+    static func chartInputTokens(
+        inputTokens: UInt64,
+        cacheReadTokens: UInt64,
+        showCacheRead: Bool
+    ) -> UInt64 {
+        inputTokens - (showCacheRead
+            ? chartCacheTokens(inputTokens: inputTokens, cacheReadTokens: cacheReadTokens)
+            : 0)
+    }
 }
 
 enum UsageRange: String, CaseIterable, Identifiable, Sendable {
@@ -373,7 +388,21 @@ struct ServiceTierPrice: Codable, Equatable, Sendable {
     }
 }
 
+// Optional days means every day; times and weekdays retain the server's semantics.
+struct TimePriceTier: Codable, Equatable, Sendable {
+    var name: String
+    var days: [Int]?
+    var start: String
+    var end: String
+    var input: Double
+    var output: Double
+    var cacheRead: Double
+    var cacheCreation: Double
+}
+
 struct ModelPrice: Codable, Equatable, Sendable {
+    var timeZone: String?
+    var timeTiers: [TimePriceTier]?
     var input: Double
     var output: Double
     var cacheRead: Double
@@ -387,6 +416,7 @@ struct ModelPrice: Codable, Equatable, Sendable {
     var updatedAt: String?
 
     private enum CodingKeys: String, CodingKey {
+        case timeZone, timeTiers
         case input, output
         case cacheRead, cacheCreation, contextTiers, serviceTiers, accountingMode
         case source
@@ -394,6 +424,8 @@ struct ModelPrice: Codable, Equatable, Sendable {
     }
 
     init(
+        timeZone: String? = nil,
+        timeTiers: [TimePriceTier]? = nil,
         input: Double = 0,
         output: Double = 0,
         cacheRead: Double = 0,
@@ -406,6 +438,8 @@ struct ModelPrice: Codable, Equatable, Sendable {
         catalogModel: String = "",
         updatedAt: String? = nil
     ) {
+        self.timeZone = timeZone
+        self.timeTiers = timeTiers
         self.input = input
         self.output = output
         self.cacheRead = cacheRead
@@ -421,6 +455,8 @@ struct ModelPrice: Codable, Equatable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        timeZone = try container.decodeIfPresent(String.self, forKey: .timeZone)
+        timeTiers = try container.decodeIfPresent([TimePriceTier].self, forKey: .timeTiers)
         input = try container.decodeIfPresent(Double.self, forKey: .input) ?? 0
         output = try container.decodeIfPresent(Double.self, forKey: .output) ?? 0
         cacheRead = try container.decodeIfPresent(Double.self, forKey: .cacheRead) ?? 0

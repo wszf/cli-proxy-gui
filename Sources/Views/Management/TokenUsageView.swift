@@ -220,14 +220,14 @@ struct TokenUsageView: View {
 
     private func trendChart(_ stats: TokenUsageSnapshot) -> some View {
         let points = visibleTrendPoints
-        let tokenMaximum = max(points.map { $0.stackTotal }.max() ?? 1, 1)
+        let tokenMaximum = max(points.map { $0.chartTotal }.max() ?? 1, 1)
         return GroupBox {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Token 消耗趋势")
                             .font(.headline)
-                        Text("输入 / 输出 / 缓存读取 Token 堆叠 · 缓存命中率虚线")
+                        Text("缓存读取包含在输入中 · 缓存命中率虚线")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -274,9 +274,24 @@ struct TokenUsageView: View {
                             if showInput {
                                 BarMark(
                                     x: .value("时间", point.date),
-                                    y: .value("Tokens", point.inputTokens)
+                                    y: .value("Tokens", TokenUsageMetrics.chartInputTokens(
+                                        inputTokens: point.inputTokens,
+                                        cacheReadTokens: point.cacheReadTokens,
+                                        showCacheRead: showCacheRead
+                                    ))
                                 )
                                 .foregroundStyle(Color.indigo)
+                                .cornerRadius(3)
+                            }
+                            if showCacheRead {
+                                BarMark(
+                                    x: .value("时间", point.date),
+                                    y: .value("Tokens", TokenUsageMetrics.chartCacheTokens(
+                                        inputTokens: point.inputTokens,
+                                        cacheReadTokens: point.cacheReadTokens
+                                    ))
+                                )
+                                .foregroundStyle(Color.orange)
                                 .cornerRadius(3)
                             }
                             if showOutput {
@@ -285,14 +300,6 @@ struct TokenUsageView: View {
                                     y: .value("Tokens", point.outputTokens)
                                 )
                                 .foregroundStyle(Color.mint)
-                                .cornerRadius(3)
-                            }
-                            if showCacheRead {
-                                BarMark(
-                                    x: .value("时间", point.date),
-                                    y: .value("Tokens", point.cacheReadTokens)
-                                )
-                                .foregroundStyle(Color.orange)
                                 .cornerRadius(3)
                             }
                             if showCacheHitRate {
@@ -1025,7 +1032,7 @@ struct TokenUsageView: View {
             chartTooltipRow("输出", compactNumber(Double(point.outputTokens)), color: .mint)
             chartTooltipRow("缓存读取", compactNumber(Double(point.cacheReadTokens)), color: .orange)
             chartTooltipRow("缓存命中率", String(format: "%.1f%%", point.cacheHitRate), color: .pink)
-            chartTooltipRow("总 Tokens", compactNumber(Double(point.stackTotal)))
+            chartTooltipRow("总 Tokens", compactNumber(Double(point.totalTokens)))
             chartTooltipRow("请求次数", point.requests.formatted())
         }
         .padding(10)
@@ -1814,8 +1821,8 @@ private struct TokenTrendPoint: Identifiable {
     let totalTokens: UInt64
 
     var id: Date { date }
-    var stackTotal: Double {
-        Double(inputTokens) + Double(outputTokens) + Double(cacheReadTokens)
+    var chartTotal: Double {
+        Double(inputTokens) + Double(outputTokens)
     }
     var cacheHitRate: Double {
         TokenUsageMetrics.cacheHitRate(
